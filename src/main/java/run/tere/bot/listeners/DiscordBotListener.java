@@ -10,16 +10,25 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
+import run.tere.bot.data.ConfigData;
+import run.tere.bot.data.CustomUserVoiceData;
 import run.tere.bot.data.OndokuStateData;
 import run.tere.bot.handlers.AudioPlayerSendHandler;
+import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 public class DiscordBotListener extends ListenerAdapter {
 
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent e) {
         Main instance = Main.getInstance();
+        ConfigData configData = instance.getConfigData();
         User user = e.getAuthor();
+        String userId = user.getId();
         String guildId = e.getGuild().getId();
         String channelId = e.getChannel().getId();
         String message = e.getMessage().getContentRaw();
@@ -27,9 +36,24 @@ public class DiscordBotListener extends ListenerAdapter {
         OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
         if (user.isBot()) return;
         if (ondokuStateData == null) return;
+        CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
+        CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
         AudioPlayerManager audioPlayerManager = ondokuStateData.getAudioPlayerManager();
         AudioPlayer audioPlayer = ondokuStateData.getAudioPlayer();
-        audioPlayerManager.loadItem("https://www.youtube.com/watch?v=nyyNKbIOjhM", new FunctionalResultHandler(audioTrack -> {
+        if (customUserVoiceData == null) {
+            customUserVoiceData = new CustomUserVoiceData(userId);
+            customUserVoiceHandler.addCustomUserVoiceData(customUserVoiceData);
+        }
+        String voiceId = customUserVoiceData.getVoiceId();
+        String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
+        String uri;
+        if (voiceId == null) {
+            uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
+        } else {
+            uri = configData.getCoeIroInkUri() + "?text=" + encodedMessage + "&voice="+ customUserVoiceData.getVoiceId() + "&uuid=" + UUID.randomUUID();
+        }
+        System.out.println(uri);
+        audioPlayerManager.loadItem(uri, new FunctionalResultHandler(audioTrack -> {
             audioPlayer.playTrack(audioTrack);
         }, audioPlaylist -> {
             audioPlayer.playTrack(audioPlaylist.getTracks().get(0));

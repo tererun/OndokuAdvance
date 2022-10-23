@@ -28,6 +28,17 @@ public class CustomUserVoiceHandler {
         return customUserVoiceDataList;
     }
 
+    public void addCustomUserVoiceData(CustomUserVoiceData customUserVoiceData) {
+        customUserVoiceDataList.add(customUserVoiceData);
+        save();
+    }
+
+    public void save() {
+        Path path = Paths.get("");
+        File file = new File(path.toAbsolutePath().toFile(), "customUserVoiceHandler.json");
+        GsonUtil.toJson(file, this);
+    }
+
     public static CustomUserVoiceHandler load() {
         Path path = Paths.get("");
         File file = new File(path.toAbsolutePath().toFile(), "customUserVoiceHandler.json");
