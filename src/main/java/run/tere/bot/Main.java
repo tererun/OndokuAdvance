@@ -80,8 +80,9 @@ public class Main {
                 .addSubcommands(new SubcommandData("b", "Ondoku君とバイバイします 👋"))
                 .addSubcommands(
                         new SubcommandData("p", "読み上げるピッチを変更します ↕")
-                                .addOption(OptionType.NUMBER, "pitch", "指定したいピッチを`-24~24`の間で指定します 🐬")
+                                .addOption(OptionType.NUMBER, "pitch", "指定したいピッチを [-24~24] の間で指定します 🐬")
                 )
+                .addSubcommands(new SubcommandData("c", "合成音声を変更します 📡"))
                 .addSubcommands(new SubcommandData("r", "Ondoku君をリロードします 🔁"))
                 .queue();
     }

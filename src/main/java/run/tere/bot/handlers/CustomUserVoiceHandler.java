@@ -21,7 +21,9 @@ public class CustomUserVoiceHandler {
         for (CustomUserVoiceData customUserVoiceData : customUserVoiceDataList) {
             if (customUserVoiceData.getUserId().equalsIgnoreCase(userId)) return customUserVoiceData;
         }
-        return null;
+        CustomUserVoiceData customUserVoiceData = new CustomUserVoiceData(userId);
+        addCustomUserVoiceData(customUserVoiceData);
+        return customUserVoiceData;
     }
 
     public List<CustomUserVoiceData> getCustomUserVoiceDataList() {

@@ -1,12 +1,15 @@
 package run.tere.bot.listeners;
 
-import com.sedmelluq.discord.lavaplayer.player.*;
+import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
+import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
+import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
@@ -31,7 +34,7 @@ public class DiscordBotListener extends ListenerAdapter {
         String userId = user.getId();
         String guildId = e.getGuild().getId();
         String channelId = e.getChannel().getId();
-        String message = e.getMessage().getContentRaw();
+        String message = e.getMessage().getContentDisplay();
         OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
         OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
         if (user.isBot()) return;
@@ -39,37 +42,32 @@ public class DiscordBotListener extends ListenerAdapter {
         if (message.length() >= 120) {
             message = message.substring(0, 119);
         }
+        message = message.replaceAll("(https?|ftp)(://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+)$", "URL省略");
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-        AudioPlayerManager audioPlayerManager = ondokuStateData.getAudioPlayerManager();
-        if (customUserVoiceData == null) {
-            customUserVoiceData = new CustomUserVoiceData(userId);
-            customUserVoiceHandler.addCustomUserVoiceData(customUserVoiceData);
-        }
         String voiceId = customUserVoiceData.getVoiceId();
         String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
         String uri;
-        if (voiceId == null) {
+        if (voiceId == null || !customUserVoiceData.isCoeIroInk()) {
             uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         } else {
             uri = configData.getCoeIroInkUri() + "?model="+ customUserVoiceData.getVoiceId() + "&uuid=" + UUID.randomUUID() + "&text=" + encodedMessage;
         }
-        audioPlayerManager.loadItem(uri, new FunctionalResultHandler(audioTrack -> {
-            ondokuStateData.getVoiceAudioListener().addQueue(audioTrack);
-        }, null, null, Throwable::printStackTrace));
+        ondokuStateData.getVoiceAudioListener().addQueue(uri);
     }
 
     @Override
     public void onSlashCommand(@NotNull SlashCommandEvent e) {
         String label = e.getName();
         Guild guild = e.getGuild();
-        if (guild == null) {
-            e.reply("ここではこのコマンドを実行できません").queue();
-            return;
-        }
-        String guildId = guild.getId();
         User user = e.getUser();
+        String userId = user.getId();
         if (label.equalsIgnoreCase("ondoku")) {
+            if (guild == null) {
+                e.reply("ここではこのコマンドを実行できません").queue();
+                return;
+            }
+            String guildId = guild.getId();
             String subCommandName = e.getSubcommandName();
             if (subCommandName == null) {
                 sendHelpEmbed(e);
@@ -104,7 +102,7 @@ public class DiscordBotListener extends ListenerAdapter {
                     AudioSourceManagers.registerRemoteSources(audioPlayerManager);
 
                     AudioPlayer audioPlayer = audioPlayerManager.createPlayer();
-                    VoiceAudioListener voiceAudioListener = new VoiceAudioListener(audioPlayer);
+                    VoiceAudioListener voiceAudioListener = new VoiceAudioListener(audioPlayerManager, audioPlayer);
                     audioPlayer.addListener(voiceAudioListener);
 
                     audioManager.setSendingHandler(new AudioPlayerSendHandler(audioPlayer));
@@ -128,6 +126,30 @@ public class DiscordBotListener extends ListenerAdapter {
                     ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
 
                     e.reply("切断しました! <#" + voiceChannelId + ">").queue();
+                } else if (subCommandName.equalsIgnoreCase("p")) {
+                    OptionMapping optionMapping = e.getOption("pitch");
+                    if (optionMapping == null) {
+                        e.reply("値を`-24~24`の間で入力してください").queue();
+                        return;
+                    }
+                    double pitchDouble = optionMapping.getAsDouble();
+                    if (pitchDouble < -24 || pitchDouble > 24) {
+                        e.reply("値を`-24~24`の間で入力してください").queue();
+                        return;
+                    }
+                    CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
+                    CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+                    customUserVoiceData.setPitch(customUserVoiceHandler, (float) pitchDouble);
+                    e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue();
+                } else if (subCommandName.equalsIgnoreCase("c")) {
+                    CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
+                    CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+                    if (customUserVoiceData.getVoiceId() == null) {
+                        e.reply("他の合成音声を割り当てていないため切り替えができませんでした!").queue();
+                        return;
+                    }
+                    customUserVoiceData.setCoeIroInk(customUserVoiceHandler, !customUserVoiceData.isCoeIroInk());
+                    e.reply("合成音声を切り替えました!").queue();
                 } else if (subCommandName.equalsIgnoreCase("r")) {
                     if (user.getId().equalsIgnoreCase("292431056135782402")) {
                         Main.getInstance().reloadConfig();
