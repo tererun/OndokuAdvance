@@ -33,7 +33,7 @@ public class Main {
         initJDA();
         initCommands();
 
-        customUserVoiceHandler = new CustomUserVoiceHandler();
+        customUserVoiceHandler = CustomUserVoiceHandler.load();
         ondokuStateHandler = new OndokuStateHandler();
     }
 

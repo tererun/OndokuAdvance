@@ -35,11 +35,13 @@ public class DiscordBotListener extends ListenerAdapter {
         OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
         OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
         if (user.isBot()) return;
-        if (ondokuStateData == null) return;
+        if (ondokuStateData == null || !ondokuStateData.getTextChannelId().equalsIgnoreCase(channelId)) return;
+        if (message.length() >= 120) {
+            message = message.substring(0, 119);
+        }
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
         AudioPlayerManager audioPlayerManager = ondokuStateData.getAudioPlayerManager();
-        AudioPlayer audioPlayer = ondokuStateData.getAudioPlayer();
         if (customUserVoiceData == null) {
             customUserVoiceData = new CustomUserVoiceData(userId);
             customUserVoiceHandler.addCustomUserVoiceData(customUserVoiceData);
@@ -50,18 +52,11 @@ public class DiscordBotListener extends ListenerAdapter {
         if (voiceId == null) {
             uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         } else {
-            uri = configData.getCoeIroInkUri() + "?text=" + encodedMessage + "&voice="+ customUserVoiceData.getVoiceId() + "&uuid=" + UUID.randomUUID();
+            uri = configData.getCoeIroInkUri() + "?model="+ customUserVoiceData.getVoiceId() + "&uuid=" + UUID.randomUUID() + "&text=" + encodedMessage;
         }
-        System.out.println(uri);
         audioPlayerManager.loadItem(uri, new FunctionalResultHandler(audioTrack -> {
-            audioPlayer.playTrack(audioTrack);
-        }, audioPlaylist -> {
-            audioPlayer.playTrack(audioPlaylist.getTracks().get(0));
-        }, () -> {
-            System.out.println("hehehe");
-        }, e1 -> {
-            e1.printStackTrace();
-        }));
+            ondokuStateData.getVoiceAudioListener().addQueue(audioTrack);
+        }, null, null, Throwable::printStackTrace));
     }
 
     @Override

@@ -2,56 +2,32 @@ package run.tere.bot.listeners;
 
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
-import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 
-import java.util.List;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public class VoiceAudioListener extends AudioEventAdapter {
 
     private AudioPlayer audioPlayer;
-    private List<String> queueMessages;
+    private Queue<AudioTrack> audioQueue;
 
     public VoiceAudioListener(AudioPlayer audioPlayer) {
         this.audioPlayer = audioPlayer;
-    }
-
-    @Override
-    public void onPlayerPause(AudioPlayer player) {
-        System.out.println("tract pause");
-    }
-
-    @Override
-    public void onPlayerResume(AudioPlayer player) {
-        System.out.println("tract resum");
-    }
-
-    @Override
-    public void onTrackStart(AudioPlayer player, AudioTrack track) {
-        System.out.println("tract start");
-    }
-
-    @Override
-    public void onTrackException(AudioPlayer player, AudioTrack track, FriendlyException exception) {
-        System.out.println("tract exe");
-    }
-
-    @Override
-    public void onTrackStuck(AudioPlayer player, AudioTrack track, long thresholdMs) {
-        System.out.println("tract str");
+        this.audioQueue = new ArrayDeque<>();
     }
 
     @Override
     public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
-        System.out.println(endReason);
+        audioPlayer.playTrack(audioQueue.poll());
     }
 
-    public void addQueue(AudioTrack audioTrack, String message) {
-        queueMessages.add(message);
-        System.out.println("come here");
-        System.out.println("a: " + audioTrack);
-        audioPlayer.startTrack(audioTrack, false);
+    public void addQueue(AudioTrack audioTrack) {
+        audioQueue.add(audioTrack);
+        if (audioQueue.size() <= 1) {
+            audioPlayer.playTrack(audioQueue.poll());
+        }
     }
 
 }
