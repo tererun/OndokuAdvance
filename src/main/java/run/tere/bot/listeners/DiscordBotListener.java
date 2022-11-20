@@ -6,6 +6,9 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.events.DisconnectEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -22,9 +25,47 @@ import run.tere.bot.handlers.OndokuStateHandler;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public class DiscordBotListener extends ListenerAdapter {
+
+    @Override
+    public void onGuildVoiceLeave(@NotNull GuildVoiceLeaveEvent e) {
+        autoDisconnect(e.getChannelLeft());
+    }
+
+    @Override
+    public void onGuildVoiceMove(@NotNull GuildVoiceMoveEvent e) {
+        autoDisconnect(e.getChannelLeft());
+    }
+
+    private void autoDisconnect(VoiceChannel voiceChannel) {
+        Main instance = Main.getInstance();
+        Guild guild = voiceChannel.getGuild();
+        String guildId = guild.getId();
+        String voiceChannelId = voiceChannel.getId();
+        OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
+        AudioManager audioManager = guild.getAudioManager();
+        VoiceChannel connectedChannel = audioManager.getConnectedChannel();
+        if (connectedChannel != null && connectedChannel.getId().equalsIgnoreCase(voiceChannelId) && getConnectedVoiceChannelSizeWithoutBot(connectedChannel) <= 1) {
+            OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
+            if (ondokuStateData != null) {
+                audioManager.closeAudioConnection();
+                ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
+            }
+        }
+    }
+
+    private int getConnectedVoiceChannelSizeWithoutBot(VoiceChannel voiceChannel) {
+        List<Member> voiceChannelMember = new ArrayList<>();
+        for (Member member : voiceChannel.getMembers()) {
+            if (!member.getUser().isBot()) voiceChannelMember.add(member);
+        }
+        return voiceChannelMember.size();
+    }
 
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent e) {
