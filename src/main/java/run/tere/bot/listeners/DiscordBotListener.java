@@ -91,9 +91,17 @@ public class DiscordBotListener extends ListenerAdapter {
                         e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue();
                         return;
                     }
-                    if (ondokuStateHandler.getOndokuStateData(guildId) != null || audioManager.getConnectedChannel() != null) {
+                    if (audioManager.getConnectedChannel() != null) {
+                        OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
+                        if (ondokuStateData != null) {
+                            ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
+                        }
                         e.reply("すでにこのサーバーでは呼び出されています!").queue();
                         return;
+                    }
+                    OndokuStateData oldOndokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
+                    if (oldOndokuStateData != null) {
+                        ondokuStateHandler.getOndokuStateDataList().remove(oldOndokuStateData);
                     }
 
                     String voiceChannelId = voiceChannel.getId();
