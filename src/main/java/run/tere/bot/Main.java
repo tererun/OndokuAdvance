@@ -46,7 +46,7 @@ public class Main {
         Path path = Paths.get("");
         File configFile = new File(path.toAbsolutePath().toFile(), "config.json");
         if (configFile.exists()) return;
-        ConfigData defaultConfigData = new ConfigData("bot token here", "localhost:port/generate", "localhost:port/voice");
+        ConfigData defaultConfigData = new ConfigData("bot token here", "localhost:port/generate", "localhost:port/voice", "localhost:port/audio/", "voicevox api key here");
         GsonUtil.toJson(configFile, defaultConfigData);
     }
 

@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
 import run.tere.bot.data.ConfigData;
 import run.tere.bot.data.CustomUserVoiceData;
+import run.tere.bot.data.CustomUserVoiceType;
 import run.tere.bot.data.OndokuStateData;
 import run.tere.bot.handlers.AudioPlayerSendHandler;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
@@ -29,6 +30,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DiscordBotListener extends ListenerAdapter {
 
@@ -83,16 +86,25 @@ public class DiscordBotListener extends ListenerAdapter {
         if (message.length() >= 120) {
             message = message.substring(0, 119);
         }
-        message = message.replaceAll("(https?|ftp)(://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+)$", "URL省略");
+        String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(message);
+        message = matcher.replaceAll("URL省略");
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+        CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
         String voiceId = customUserVoiceData.getVoiceId();
         String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
         String uri;
-        if (voiceId == null || !customUserVoiceData.isCoeIroInk()) {
-            uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
+        if (customUserVoiceType == null) {
+            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
+        }
+        if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
+            uri = configData.getVoicevoxUri() + "?key=" + configData.getVoicevoxAPIToken() + "&speaker=3&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
+        } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
+            uri = configData.getCoeIroInkUri() + "?model="+ voiceId + "&uuid=" + UUID.randomUUID() + "&text=" + encodedMessage;
         } else {
-            uri = configData.getCoeIroInkUri() + "?model="+ customUserVoiceData.getVoiceId() + "&uuid=" + UUID.randomUUID() + "&text=" + encodedMessage;
+            uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         }
         ondokuStateData.getVoiceAudioListener().addQueue(uri);
     }
@@ -193,12 +205,19 @@ public class DiscordBotListener extends ListenerAdapter {
                 } else if (subCommandName.equalsIgnoreCase("c")) {
                     CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
                     CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-                    if (customUserVoiceData.getVoiceId() == null) {
-                        e.reply("他の合成音声を割り当てていないため切り替えができませんでした!").queue();
-                        return;
+                    CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
+                    if (customUserVoiceType == CustomUserVoiceType.OPEN_JTALK) {
+                        customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.VOICEVOX);
+                    } else if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
+                        if (customUserVoiceData.getVoiceId() == null) {
+                            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
+                        } else {
+                            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
+                        }
+                    } else {
+                        customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
                     }
-                    customUserVoiceData.setCoeIroInk(customUserVoiceHandler, !customUserVoiceData.isCoeIroInk());
-                    e.reply("合成音声を切り替えました!").queue();
+                    e.reply("合成音声を **[ " + customUserVoiceData.getCustomUserVoiceType().getName() + " ]** に切り替えました!").queue();
                 } else if (subCommandName.equalsIgnoreCase("r")) {
                     if (user.getId().equalsIgnoreCase("292431056135782402")) {
                         Main.getInstance().reloadConfig();

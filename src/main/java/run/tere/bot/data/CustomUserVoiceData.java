@@ -9,7 +9,9 @@ public class CustomUserVoiceData {
     private String userId;
     private float pitch;
     private String voiceId;
+    // deprecated
     private boolean coeIroInk;
+    private CustomUserVoiceType customUserVoiceType;
 
     public CustomUserVoiceData(String userId) {
         Random random = new Random();
@@ -17,6 +19,7 @@ public class CustomUserVoiceData {
         this.pitch = 24 - random.nextInt(48);
         this.voiceId = null;
         this.coeIroInk = false;
+        this.customUserVoiceType = CustomUserVoiceType.OPEN_JTALK;
     }
 
     public String getUserId() {
@@ -34,6 +37,15 @@ public class CustomUserVoiceData {
 
     public void setCoeIroInk(CustomUserVoiceHandler customUserVoiceHandler, boolean coeIroInk) {
         this.coeIroInk = coeIroInk;
+        customUserVoiceHandler.save();
+    }
+
+    public CustomUserVoiceType getCustomUserVoiceType() {
+        return customUserVoiceType;
+    }
+
+    public void setCustomUserVoiceType(CustomUserVoiceHandler customUserVoiceHandler, CustomUserVoiceType customUserVoiceType) {
+        this.customUserVoiceType = customUserVoiceType;
         customUserVoiceHandler.save();
     }
 
