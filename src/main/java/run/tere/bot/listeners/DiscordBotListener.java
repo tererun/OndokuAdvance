@@ -244,7 +244,7 @@ public class DiscordBotListener extends ListenerAdapter {
                                 "`/ondoku i`　このヘルプを表示\n" +
                                         "`/ondoku s`　Ondoku を召喚します\n" +
                                         "`/ondoku p 数値`　声の高さを`[-24~24]`の間で変更します\n" +
-                                        "`/ondoku c`　読み上げ声を切り替えます" +
+                                        "`/ondoku c`　読み上げ声を切り替えます\n" +
                                         "`/ondoku r`　Ondoku をリロードします"
                                 , true)
                         .addField(
