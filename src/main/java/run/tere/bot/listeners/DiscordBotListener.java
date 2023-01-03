@@ -237,13 +237,14 @@ public class DiscordBotListener extends ListenerAdapter {
     private void sendHelpEmbed(SlashCommandEvent slashCommandEvent) {
         slashCommandEvent.replyEmbeds(
                 new EmbedBuilder()
-                        .setTitle("Help / ヘルプ")
-                        .setDescription("読み上げBot「Ondoku」のヘルプです")
+                        .setTitle("Info / 情報")
+                        .setDescription("読み上げBot「Ondoku」の情報です")
                         .addField(
                                 ":keyboard: **Commands**",
-                                "`/ondoku`　このヘルプを表示\n" +
+                                "`/ondoku i`　このヘルプを表示\n" +
                                         "`/ondoku s`　Ondoku を召喚します\n" +
                                         "`/ondoku p 数値`　声の高さを`[-24~24]`の間で変更します\n" +
+                                        "`/ondoku c`　読み上げ声を切り替えます" +
                                         "`/ondoku r`　Ondoku をリロードします"
                                 , true)
                         .addField(
