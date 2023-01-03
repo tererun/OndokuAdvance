@@ -225,6 +225,8 @@ public class DiscordBotListener extends ListenerAdapter {
                     } else {
                         e.reply("権限がありません!").queue();
                     }
+                } else if (subCommandName.equalsIgnoreCase("i")) {
+                    sendHelpEmbed(e);
                 } else {
                     sendHelpEmbed(e);
                 }
@@ -247,11 +249,12 @@ public class DiscordBotListener extends ListenerAdapter {
                         .addField(
                                 ":four_leaf_clover: **Thanks**",
                                 "`OpenJTalk`　音声合成システム\n" +
-                                        "`HTS voice tohoku-f01`　[音響モデル](https://github.com/icn-lab/htsvoice-tohoku-f01)\n"
+                                        "`HTS voice tohoku-f01`　[音響モデル](https://github.com/icn-lab/htsvoice-tohoku-f01)\n"+
+                                        "`VOICEVOX`　[ずんだもん](https://voicevox.hiroshiba.jp/)\n"
                                 , true)
                         .setFooter("てれるんお手製 - OndokuAdvance Patch-1.0.0")
                         .build()
-        );
+        ).queue();
     }
 
 }

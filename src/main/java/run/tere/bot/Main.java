@@ -84,6 +84,7 @@ public class Main {
                 )
                 .addSubcommands(new SubcommandData("c", "合成音声を変更します 📡"))
                 .addSubcommands(new SubcommandData("r", "Ondoku君をリロードします 🔁"))
+                .addSubcommands(new SubcommandData("i", "Ondoku君の情報を表示します ℹ️"))
                 .queue();
     }
 
