@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'run.tere.bot'
-version 'Patch-1.0.0'
+version 'Patch-1.0.1'
 
 repositories {
     mavenCentral()
