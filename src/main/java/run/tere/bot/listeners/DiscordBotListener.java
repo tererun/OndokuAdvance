@@ -145,10 +145,12 @@ public class DiscordBotListener extends ListenerAdapter {
                         return;
                     }
                     if (audioManager.getConnectedChannel() != null) {
+                        /*
                         OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
                         if (ondokuStateData != null) {
                             ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
                         }
+                         */
                         e.reply("すでにこのサーバーでは呼び出されています!").queue();
                         return;
                     }
