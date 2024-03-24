@@ -178,17 +178,19 @@ public class DiscordBotListener extends ListenerAdapter {
                 } else if (subCommandName.equalsIgnoreCase("b")) {
                     VoiceChannel voiceChannel = audioManager.getConnectedChannel();
                     OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
-                    if (ondokuStateData == null || voiceChannel == null) {
-                        e.reply("このサーバーでは呼び出されていません!").queue();
-                        return;
+                    if (voiceChannel != null) {
+                        String voiceChannelId = voiceChannel.getId();
+                        audioManager.closeAudioConnection();
+
+                        if (ondokuStateData != null) {
+                            ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
+                        }
+                        e.reply("切断しました! <#" + voiceChannelId + ">").queue();
+                    } else {
+                        if (ondokuStateData == null) {
+                            e.reply("このサーバーでは呼び出されていません!").queue();
+                        }
                     }
-
-                    String voiceChannelId = voiceChannel.getId();
-                    audioManager.closeAudioConnection();
-
-                    ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
-
-                    e.reply("切断しました! <#" + voiceChannelId + ">").queue();
                 } else if (subCommandName.equalsIgnoreCase("p")) {
                     OptionMapping optionMapping = e.getOption("pitch");
                     if (optionMapping == null) {
