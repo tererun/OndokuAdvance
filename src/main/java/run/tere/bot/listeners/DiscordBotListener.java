@@ -100,7 +100,7 @@ public class DiscordBotListener extends ListenerAdapter {
         if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
             uri = configData.getVoicevoxUri() + "?key=" + configData.getVoicevoxAPIToken() + "&speaker=3&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
         } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
-            uri = "coeiroink;" + voiceId + ";" + encodedMessage;
+            uri = "coeiroink;" + encodedMessage + ";" + voiceId;
         } else {
             uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         }
