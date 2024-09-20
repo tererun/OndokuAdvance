@@ -12,7 +12,7 @@ public class GsonUtil {
     public static void toJson(File file, Object object) {
         try (Writer writer = new OutputStreamWriter(
                 new FileOutputStream(file), StandardCharsets.UTF_8)) {
-            Gson gson = new GsonBuilder().create();
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
             gson.toJson(object, writer);
         } catch (IOException e) {
             e.printStackTrace();
