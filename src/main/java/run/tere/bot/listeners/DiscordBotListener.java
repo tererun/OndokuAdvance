@@ -6,7 +6,6 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.DisconnectEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
@@ -27,7 +26,6 @@ import run.tere.bot.handlers.OndokuStateHandler;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -102,7 +100,7 @@ public class DiscordBotListener extends ListenerAdapter {
         if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
             uri = configData.getVoicevoxUri() + "?key=" + configData.getVoicevoxAPIToken() + "&speaker=3&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
         } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
-            uri = configData.getCoeIroInkUri() + "?model="+ voiceId + "&uuid=" + UUID.randomUUID() + "&text=" + encodedMessage;
+            uri = "coeiroink;" + voiceId + ";" + encodedMessage;
         } else {
             uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         }
