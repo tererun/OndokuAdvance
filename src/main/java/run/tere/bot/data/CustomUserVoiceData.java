@@ -12,6 +12,7 @@ public class CustomUserVoiceData {
     private int styleId;
     // deprecated
     private boolean coeIroInk;
+    private int voicevoxSpeakerId;
     private CustomUserVoiceType customUserVoiceType;
 
     public CustomUserVoiceData(String userId) {
@@ -22,6 +23,7 @@ public class CustomUserVoiceData {
         this.styleId = 0;
         this.coeIroInk = false;
         this.customUserVoiceType = CustomUserVoiceType.OPEN_JTALK;
+        this.voicevoxSpeakerId = 3;
     }
 
     public String getUserId() {
@@ -63,4 +65,12 @@ public class CustomUserVoiceData {
         return styleId;
     }
 
+    public int getVoicevoxSpeakerId() {
+        return voicevoxSpeakerId;
+    }
+
+    public void setVoicevoxSpeakerId(CustomUserVoiceHandler customUserVoiceHandler, int voicevoxSpeakerId) {
+        this.voicevoxSpeakerId = voicevoxSpeakerId;
+        customUserVoiceHandler.save();
+    }
 }
