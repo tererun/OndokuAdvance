@@ -14,6 +14,7 @@ import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import net.dv8tion.jda.api.interactions.components.selections.SelectionMenu;
 import net.dv8tion.jda.api.managers.AudioManager;
@@ -26,8 +27,7 @@ import run.tere.bot.data.OndokuStateData;
 import run.tere.bot.handlers.AudioPlayerSendHandler;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
-import run.tere.bot.speakers.Speaker;
-import run.tere.bot.speakers.Style;
+import run.tere.bot.speakers.SpeakerInfo;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -75,24 +75,16 @@ public class DiscordBotListener extends ListenerAdapter {
         return voiceChannelMember.size();
     }
 
-    private HashMap<String, String> selectedVoiceData = new HashMap<>();
+    private HashMap<String, Integer> viewingPages = new HashMap<>();
 
     @Override
     public void onSelectionMenu(@NotNull SelectionMenuEvent event) {
         if (!event.getComponentId().equalsIgnoreCase("voiceData")) return;
-        String userId = event.getUser().getId();
-        String selectedOption = event.getValues().get(0);
-        selectedVoiceData.put(userId, selectedOption);
-    }
-
-    @Override
-    public void onButtonClick(@NotNull ButtonClickEvent event) {
-        if (!event.getComponentId().equalsIgnoreCase("voice_confirm")) return;
         Main instance = Main.getInstance();
         String userId = event.getUser().getId();
-        String selectedOption = selectedVoiceData.get(userId);
+        String selectedOption = event.getValues().get(0);
         if (selectedOption == null) {
-            event.reply("声を選択してください").queue();
+            event.reply("声を選択してください").setEphemeral(true).queue();
             return;
         }
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
@@ -111,6 +103,65 @@ public class DiscordBotListener extends ListenerAdapter {
                 break;
         }
         event.reply("声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
+    }
+
+    private SelectionMenu createSelectionMenu(String userId) {
+        CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
+        CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+        SelectionMenu.Builder builder = SelectionMenu.create("voiceData");
+        builder.setPlaceholder("声を選択");
+
+        int pageId = viewingPages.getOrDefault(userId, 0);
+        int start = pageId * 25 - 2;
+        int pickup = 25;
+
+        if (pageId == 0) {
+            pickup = 23;
+            start = 0;
+            builder.addOption("OpenJTalk", "openjtalk;tohoku-f01-neutral;OpenJTalk");
+            if (customUserVoiceData.getVoiceId() != null) builder.addOption("自分の声", "coeiroink;自分の声;自分の声");
+        }
+
+        List<SpeakerInfo> speakerInfos = Main.getInstance().getVoicevoxSpeakerHandler().getSpeakerInfos();
+        for (int i = start; i < Math.min(speakerInfos.size(), start + pickup); i++) {
+            SpeakerInfo speakerInfo = speakerInfos.get(i);
+            builder.addOption(speakerInfo.displayName(), speakerInfo.name());
+        }
+
+        return builder.build();
+    }
+
+    private void editSelectionMenu(ButtonClickEvent event) {
+        event.editComponents(ActionRow.of(
+                createSelectionMenu(event.getUser().getId())
+        ), ActionRow.of(
+                Button.secondary("voice_left", "←"),
+                Button.secondary("voice_right", "→")
+        )).queue();
+    }
+
+    @Override
+    public void onButtonClick(@NotNull ButtonClickEvent event) {
+        switch (event.getComponentId()) {
+            case "voice_left": {
+                if (viewingPages.getOrDefault(event.getUser().getId(), 0) <= 0) {
+                    event.reply("これ以上左には移動できません").setEphemeral(true).queue();
+                    return;
+                }
+                viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) - 1);
+                editSelectionMenu(event);
+                break;
+            }
+            case "voice_right": {
+                if (viewingPages.getOrDefault(event.getUser().getId(), 0) >= Math.floor((double) Main.getInstance().getVoicevoxSpeakerHandler().getSpeakerInfos().size() / 25)) {
+                    event.reply("これ以上右には移動できません").setEphemeral(true).queue();
+                    return;
+                }
+                viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) + 1);
+                editSelectionMenu(event);
+                break;
+            }
+        }
     }
 
     @Override
@@ -245,23 +296,15 @@ public class DiscordBotListener extends ListenerAdapter {
                     customUserVoiceData.setPitch(customUserVoiceHandler, (float) pitchDouble);
                     e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue();
                 } else if (subCommandName.equalsIgnoreCase("c")) {
-                    CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
-                    CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-                    selectedVoiceData.remove(user.getId());
-
-                    SelectionMenu.Builder builder = SelectionMenu.create("voiceData");
-                    builder.setPlaceholder("声を選択");
-                    builder.addOption("OpenJTalk", "openjtalk;tohoku-f01-neutral;OpenJTalk");
-                    if (customUserVoiceData.getVoiceId() != null) builder.addOption("自分の声", "coeiroink;自分の声;自分の声");
-                    for (Speaker speaker: Main.getInstance().getVoicevoxSpeakerHandler().getSpeakers()) {
-                        for (Style style: speaker.getStyles()) {
-                            builder.addOption(speaker.getName() + " - " + style.getName(), "voicevox;" + style.getId() + ";" + speaker.getName() + " - " + style.getName());
-                        }
-                    }
+                    viewingPages.put(user.getId(), 0);
 
                     e.reply("使いたい声を選択してください")
-                            .addActionRow(builder.build())
-                            .addActionRow(Button.primary("voice_confirm", "決定"))
+                            .addActionRow(createSelectionMenu(user.getId()))
+                            .addActionRow(
+                                    Button.secondary("voice_left", "←"),
+                                    Button.secondary("voice_right", "→")
+                            )
+                            .setEphemeral(true)
                             .queue();
                 } else if (subCommandName.equalsIgnoreCase("r")) {
                     if (user.getId().equalsIgnoreCase("292431056135782402")) {
