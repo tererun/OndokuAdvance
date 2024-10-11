@@ -8,10 +8,13 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
+import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
+import net.dv8tion.jda.api.events.interaction.SelectionMenuEvent;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.components.Button;
 import net.dv8tion.jda.api.interactions.components.selections.SelectionMenu;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
@@ -23,10 +26,13 @@ import run.tere.bot.data.OndokuStateData;
 import run.tere.bot.handlers.AudioPlayerSendHandler;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
+import run.tere.bot.speakers.Speaker;
+import run.tere.bot.speakers.Style;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -69,6 +75,44 @@ public class DiscordBotListener extends ListenerAdapter {
         return voiceChannelMember.size();
     }
 
+    private HashMap<String, String> selectedVoiceData = new HashMap<>();
+
+    @Override
+    public void onSelectionMenu(@NotNull SelectionMenuEvent event) {
+        if (!event.getComponentId().equalsIgnoreCase("voiceData")) return;
+        String userId = event.getUser().getId();
+        String selectedOption = event.getValues().get(0);
+        selectedVoiceData.put(userId, selectedOption);
+    }
+
+    @Override
+    public void onButtonClick(@NotNull ButtonClickEvent event) {
+        if (!event.getComponentId().equalsIgnoreCase("voice_confirm")) return;
+        Main instance = Main.getInstance();
+        String userId = event.getUser().getId();
+        String selectedOption = selectedVoiceData.get(userId);
+        if (selectedOption == null) {
+            event.reply("声を選択してください").queue();
+            return;
+        }
+        CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
+        CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+        String[] selectedOptionSplit = selectedOption.split(";");
+        switch (selectedOptionSplit[0]) {
+            case "openjtalk":
+                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
+                break;
+            case "voicevox":
+                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.VOICEVOX);
+                customUserVoiceData.setVoicevoxSpeakerId(customUserVoiceHandler, Integer.parseInt(selectedOptionSplit[1]));
+                break;
+            case "coeiroink":
+                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
+                break;
+        }
+        event.reply("声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
+    }
+
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent e) {
         Main instance = Main.getInstance();
@@ -100,7 +144,7 @@ public class DiscordBotListener extends ListenerAdapter {
             customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
         }
         if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
-            uri = configData.getVoicevoxUri() + "?key=" + configData.getVoicevoxAPIToken() + "&speaker=3&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
+            uri = configData.getVoicevoxUri() + "/audio/?key=" + configData.getVoicevoxAPIToken() + "&speaker=" + customUserVoiceData.getVoicevoxSpeakerId() + "&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
         } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
             uri = "coeiroink;" + message + ";" + voiceId + ";" + styleId;
         } else {
@@ -145,12 +189,6 @@ public class DiscordBotListener extends ListenerAdapter {
                         return;
                     }
                     if (audioManager.getConnectedChannel() != null) {
-                        /*
-                        OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
-                        if (ondokuStateData != null) {
-                            ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
-                        }
-                         */
                         e.reply("すでにこのサーバーでは呼び出されています!").queue();
                         return;
                     }
@@ -209,19 +247,22 @@ public class DiscordBotListener extends ListenerAdapter {
                 } else if (subCommandName.equalsIgnoreCase("c")) {
                     CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
                     CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-                    CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
-                    if (customUserVoiceType == CustomUserVoiceType.OPEN_JTALK) {
-                        customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.VOICEVOX);
-                    } else if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
-                        if (customUserVoiceData.getVoiceId() == null) {
-                            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
-                        } else {
-                            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
+                    selectedVoiceData.remove(user.getId());
+
+                    SelectionMenu.Builder builder = SelectionMenu.create("voiceData");
+                    builder.setPlaceholder("声を選択");
+                    builder.addOption("OpenJTalk", "openjtalk;tohoku-f01-neutral;OpenJTalk");
+                    if (customUserVoiceData.getVoiceId() != null) builder.addOption("自分の声", "coeiroink;自分の声;自分の声");
+                    for (Speaker speaker: Main.getInstance().getVoicevoxSpeakerHandler().getSpeakers()) {
+                        for (Style style: speaker.getStyles()) {
+                            builder.addOption(speaker.getName() + " - " + style.getName(), "voicevox;" + style.getId() + ";" + speaker.getName() + " - " + style.getName());
                         }
-                    } else {
-                        customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
                     }
-                    e.reply("合成音声を **[ " + customUserVoiceData.getCustomUserVoiceType().getName() + " ]** に切り替えました!").queue();
+
+                    e.reply("使いたい声を選択してください")
+                            .addActionRow(builder.build())
+                            .addActionRow(Button.primary("voice_confirm", "決定"))
+                            .queue();
                 } else if (subCommandName.equalsIgnoreCase("r")) {
                     if (user.getId().equalsIgnoreCase("292431056135782402")) {
                         Main.getInstance().reloadConfig();
