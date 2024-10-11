@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import run.tere.bot.data.ConfigData;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
+import run.tere.bot.handlers.VoicevoxSpeakerHandler;
 import run.tere.bot.listeners.DiscordBotListener;
 import run.tere.bot.utils.GsonUtil;
 
@@ -23,6 +24,7 @@ public class Main {
     private ConfigData configData;
     private CustomUserVoiceHandler customUserVoiceHandler;
     private OndokuStateHandler ondokuStateHandler;
+    private VoicevoxSpeakerHandler voicevoxSpeakerHandler;
 
     public static void main(String[] args) {
         instance = new Main();
@@ -33,6 +35,7 @@ public class Main {
         initJDA();
         initCommands();
 
+        voicevoxSpeakerHandler = new VoicevoxSpeakerHandler();
         customUserVoiceHandler = CustomUserVoiceHandler.load();
         ondokuStateHandler = new OndokuStateHandler();
     }
@@ -102,6 +105,10 @@ public class Main {
 
     public OndokuStateHandler getVoiceChannelHandler() {
         return ondokuStateHandler;
+    }
+
+    public VoicevoxSpeakerHandler getVoicevoxSpeakerHandler() {
+        return voicevoxSpeakerHandler;
     }
 
     public static Main getInstance() {
