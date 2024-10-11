@@ -28,6 +28,7 @@ public class Main {
 
     public static void main(String[] args) {
         instance = new Main();
+        instance.init();
     }
 
     public Main() {
@@ -35,9 +36,12 @@ public class Main {
         initJDA();
         initCommands();
 
-        voicevoxSpeakerHandler = new VoicevoxSpeakerHandler();
         customUserVoiceHandler = CustomUserVoiceHandler.load();
         ondokuStateHandler = new OndokuStateHandler();
+    }
+
+    public void init() {
+        voicevoxSpeakerHandler = new VoicevoxSpeakerHandler();
     }
 
     private void initConfig() {
