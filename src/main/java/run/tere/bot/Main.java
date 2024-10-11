@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import run.tere.bot.data.ConfigData;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
+import run.tere.bot.handlers.VoicevoxSpeakerHandler;
 import run.tere.bot.listeners.DiscordBotListener;
 import run.tere.bot.utils.GsonUtil;
 
@@ -23,9 +24,11 @@ public class Main {
     private ConfigData configData;
     private CustomUserVoiceHandler customUserVoiceHandler;
     private OndokuStateHandler ondokuStateHandler;
+    private VoicevoxSpeakerHandler voicevoxSpeakerHandler;
 
     public static void main(String[] args) {
         instance = new Main();
+        instance.init();
     }
 
     public Main() {
@@ -37,6 +40,10 @@ public class Main {
         ondokuStateHandler = new OndokuStateHandler();
     }
 
+    public void init() {
+        voicevoxSpeakerHandler = new VoicevoxSpeakerHandler();
+    }
+
     private void initConfig() {
         saveDefaultConfig();
         configData = loadConfig();
@@ -46,7 +53,7 @@ public class Main {
         Path path = Paths.get("");
         File configFile = new File(path.toAbsolutePath().toFile(), "config.json");
         if (configFile.exists()) return;
-        ConfigData defaultConfigData = new ConfigData("bot token here", "localhost:port/generate", "localhost:port/voice", "localhost:port/audio/", "voicevox api key here");
+        ConfigData defaultConfigData = new ConfigData("bot token here", "localhost:port/generate", "localhost:port/voice", "localhost:port/audio", "voicevox api key here");
         GsonUtil.toJson(configFile, defaultConfigData);
     }
 
@@ -102,6 +109,10 @@ public class Main {
 
     public OndokuStateHandler getVoiceChannelHandler() {
         return ondokuStateHandler;
+    }
+
+    public VoicevoxSpeakerHandler getVoicevoxSpeakerHandler() {
+        return voicevoxSpeakerHandler;
     }
 
     public static Main getInstance() {

@@ -1,9 +1,14 @@
 package run.tere.bot.utils;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import run.tere.bot.Main;
+import run.tere.bot.speakers.Speaker;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -11,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 public class HttpUtil {
@@ -27,6 +33,31 @@ public class HttpUtil {
         double prePhonemeLength;
         double postPhonemeLength;
         int outputSamplingRate;
+    }
+
+    public static List<Speaker> getAvailableSpeakers() throws Exception {
+        String urlString = Main.getInstance().getConfigData().getVoicevoxUri() + "/speakers?key=" + Main.getInstance().getConfigData().getVoicevoxAPIToken();
+        URL url = new URL(urlString);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+
+        if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            try (InputStream inputStream = connection.getInputStream();
+                 InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                 BufferedReader in = new BufferedReader(inputStreamReader)) {
+                String inputLine;
+                StringBuilder response = new StringBuilder();
+
+                while ((inputLine = in.readLine()) != null) {
+                    response.append(inputLine);
+                }
+
+                Gson gson = new Gson();
+                return gson.fromJson(response.toString(), new TypeToken<List<Speaker>>() {}.getType());
+            }
+        } else {
+            throw new RuntimeException("HTTP request failed. Response Code: " + connection.getResponseCode());
+        }
     }
 
     public static String createFromSynthesis(String text, String speakerUuid, int styleId) throws Exception {
