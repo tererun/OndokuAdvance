@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.components.selections.SelectionMenu;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
@@ -92,6 +93,7 @@ public class DiscordBotListener extends ListenerAdapter {
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
         CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
         String voiceId = customUserVoiceData.getVoiceId();
+        int styleId = customUserVoiceData.getStyleId();
         String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
         String uri;
         if (customUserVoiceType == null) {
@@ -100,7 +102,7 @@ public class DiscordBotListener extends ListenerAdapter {
         if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
             uri = configData.getVoicevoxUri() + "?key=" + configData.getVoicevoxAPIToken() + "&speaker=3&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
         } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
-            uri = "coeiroink;" + encodedMessage + ";" + voiceId;
+            uri = "coeiroink;" + message + ";" + voiceId + ";" + styleId;
         } else {
             uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
         }

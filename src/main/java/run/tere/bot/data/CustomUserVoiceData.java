@@ -9,6 +9,7 @@ public class CustomUserVoiceData {
     private String userId;
     private float pitch;
     private String voiceId;
+    private int styleId;
     // deprecated
     private boolean coeIroInk;
     private CustomUserVoiceType customUserVoiceType;
@@ -18,6 +19,7 @@ public class CustomUserVoiceData {
         this.userId = userId;
         this.pitch = 24 - random.nextInt(48);
         this.voiceId = null;
+        this.styleId = 0;
         this.coeIroInk = false;
         this.customUserVoiceType = CustomUserVoiceType.OPEN_JTALK;
     }
@@ -55,6 +57,10 @@ public class CustomUserVoiceData {
 
     public String getVoiceId() {
         return voiceId;
+    }
+
+    public int getStyleId() {
+        return styleId;
     }
 
 }
