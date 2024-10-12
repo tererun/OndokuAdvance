@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import run.tere.bot.data.ConfigData;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
+import run.tere.bot.handlers.DictHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
 import run.tere.bot.handlers.VoicevoxSpeakerHandler;
 import run.tere.bot.listeners.DiscordBotListener;
@@ -24,6 +25,7 @@ public class Main {
     private CustomUserVoiceHandler customUserVoiceHandler;
     private OndokuStateHandler ondokuStateHandler;
     private VoicevoxSpeakerHandler voicevoxSpeakerHandler;
+    private DictHandler dictHandler;
 
     public static void main(String[] args) {
         instance = new Main();
@@ -36,6 +38,7 @@ public class Main {
         initCommands();
 
         customUserVoiceHandler = CustomUserVoiceHandler.load();
+        dictHandler = DictHandler.load();
         ondokuStateHandler = new OndokuStateHandler();
     }
 
@@ -87,6 +90,10 @@ public class Main {
                                 .addOption(OptionType.NUMBER, "pitch", "指定したいピッチを [-24~24] の間で指定します 🐬")
                 )
                 .addSubcommands(new SubcommandData("c", "合成音声を変更します 📡"))
+                .addSubcommands(new SubcommandData("ad", "単語を辞書に登録します 👓"))
+                .addSubcommands(new SubcommandData("rd", "単語を辞書から削除します 🗑️"))
+                .addSubcommands(new SubcommandData("ajd", "単語のJSONを辞書に登録します 📜"))
+                .addSubcommands(new SubcommandData("d", "辞書を表示します 📖"))
                 .addSubcommands(new SubcommandData("r", "Ondoku君をリロードします 🔁"))
                 .addSubcommands(new SubcommandData("i", "Ondoku君の情報を表示します ℹ️"))
                 .queue();
@@ -102,6 +109,10 @@ public class Main {
 
     public CustomUserVoiceHandler getCustomUserVoiceHandler() {
         return customUserVoiceHandler;
+    }
+
+    public DictHandler getDictHandler() {
+        return dictHandler;
     }
 
     public OndokuStateHandler getVoiceChannelHandler() {
