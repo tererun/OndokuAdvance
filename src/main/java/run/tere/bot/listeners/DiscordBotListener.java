@@ -1,5 +1,8 @@
 package run.tere.bot.listeners;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
@@ -12,6 +15,7 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
@@ -21,6 +25,9 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.interactions.components.text.TextInput;
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
+import net.dv8tion.jda.api.interactions.modals.Modal;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
@@ -36,10 +43,7 @@ import run.tere.bot.utils.VersionUtil;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -169,6 +173,69 @@ public class DiscordBotListener extends ListenerAdapter {
     }
 
     @Override
+    public void onModalInteraction(ModalInteractionEvent event) {
+        switch (event.getModalId()) {
+            case "add_dict_modal": {
+                String key = event.getValues().get(0).getAsString();
+                String value = event.getValues().get(1).getAsString();
+                Guild guild = event.getGuild();
+                if (guild == null) {
+                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
+                    return;
+                }
+                Main.getInstance().getDictHandler().addDict(guild.getId(), key, value);
+                event.replyEmbeds(new EmbedBuilder()
+                        .setTitle("辞書に単語を追加しました")
+                        .addField("単語", key, true)
+                        .addField("読み", value, true)
+                        .build()
+                ).queue();
+                break;
+            }
+            case "remove_dict_modal": {
+                String key = event.getValues().get(0).getAsString();
+                Guild guild = event.getGuild();
+                if (guild == null) {
+                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
+                    return;
+                }
+                Main.getInstance().getDictHandler().removeDict(guild.getId(), key);
+                event.replyEmbeds(new EmbedBuilder()
+                        .setTitle("辞書から単語を削除しました")
+                        .addField("単語", key, true)
+                        .build()
+                ).queue();
+                break;
+            }
+            case "add_json_dict_modal": {
+                String json = event.getValues().get(0).getAsString();
+                Guild guild = event.getGuild();
+                if (guild == null) {
+                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
+                    return;
+                }
+
+                Gson gson = new Gson();
+
+                try {
+                    Map<String, String> map = gson.fromJson(json, new TypeToken<Map<String, String>>() {
+                    }.getType());
+
+                    Main.getInstance().getDictHandler().addDictList(guild.getId(), map);
+                    event.replyEmbeds(new EmbedBuilder()
+                            .setTitle("辞書にJSONで単語を追加しました")
+                            .addField("JSON", json, true)
+                            .build()
+                    ).queue();
+                } catch (JsonSyntaxException e) {
+                    event.reply("JSONの形式が正しくありません").setEphemeral(true).queue();
+                }
+                break;
+            }
+        }
+    }
+
+    @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent e) {
         Main instance = Main.getInstance();
         ConfigData configData = instance.getConfigData();
@@ -183,6 +250,9 @@ public class DiscordBotListener extends ListenerAdapter {
         if (ondokuStateData == null || !ondokuStateData.getTextChannelId().equalsIgnoreCase(channelId)) return;
         if (message.length() >= 120) {
             message = message.substring(0, 119);
+        }
+        for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
+            message = message.replaceAll(entry.getKey(), entry.getValue());
         }
         String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
         Pattern pattern = Pattern.compile(regex);
@@ -301,6 +371,52 @@ public class DiscordBotListener extends ListenerAdapter {
                     CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
                     customUserVoiceData.setPitch(customUserVoiceHandler, (float) pitchDouble);
                     e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue();
+                } else if (subCommandName.equalsIgnoreCase("ad")) {
+                    Modal modal = Modal.create("add_dict_modal", "辞書に単語を追加")
+                            .addComponents(ActionRow.of(
+                                    TextInput.create("key","単語", TextInputStyle.SHORT)
+                                            .setPlaceholder("単語を入力してください")
+                                            .setRequired(true)
+                                            .build()), ActionRow.of(
+                                    TextInput.create("value","読み", TextInputStyle.SHORT)
+                                            .setPlaceholder("読みを入力してください")
+                                            .setRequired(true)
+                                            .build()
+                            )).build();
+
+                    e.replyModal(modal).queue();
+                } else if (subCommandName.equalsIgnoreCase("rd")) {
+                    Modal modal = Modal.create("remove_dict_modal", "辞書から単語を削除")
+                            .addComponents(ActionRow.of(
+                                    TextInput.create("key","単語", TextInputStyle.SHORT)
+                                            .setPlaceholder("単語を入力してください")
+                                            .setRequired(true)
+                                            .build()
+                                    )
+                            ).build();
+
+                    e.replyModal(modal).queue();
+                } else if (subCommandName.equalsIgnoreCase("ajd")) {
+                    Modal modal = Modal.create("add_json_dict_modal", "辞書にJSONで単語を追加")
+                            .addComponents(ActionRow.of(
+                                            TextInput.create("json","JSON", TextInputStyle.PARAGRAPH)
+                                                    .setPlaceholder("JSONを入力してください")
+                                                    .setRequired(true)
+                                                    .build()
+                                    )
+                            ).build();
+
+                    e.replyModal(modal).queue();
+                } else if (subCommandName.equalsIgnoreCase("d")) {
+                    EmbedBuilder builder = new EmbedBuilder()
+                            .setTitle("辞書")
+                            .setDescription("辞書の一覧です");
+
+                    for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
+                        builder.addField(entry.getKey(), entry.getValue(), true);
+                    }
+
+                    e.replyEmbeds(builder.build()).queue();
                 } else if (subCommandName.equalsIgnoreCase("c")) {
                     viewingPages.put(user.getId(), 0);
 
@@ -339,6 +455,10 @@ public class DiscordBotListener extends ListenerAdapter {
                                         "`/ondoku s`　Ondoku を召喚します\n" +
                                         "`/ondoku p 数値`　声の高さを`[-24~24]`の間で変更します\n" +
                                         "`/ondoku c`　読み上げ声を切り替えます\n" +
+                                        "`/ondoku ad`　単語を辞書に追加します\n" +
+                                        "`/ondoku rd`　単語を辞書から削除します\n" +
+                                        "`/ondoku ajd`　単語のJSONを辞書に追加します\n" +
+                                        "`/ondoku d`　辞書の一覧を表示します\n" +
                                         "`/ondoku r`　Ondoku をリロードします"
                                 , true)
                         .addField(
