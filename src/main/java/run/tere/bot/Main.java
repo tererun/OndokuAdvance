@@ -72,6 +72,8 @@ public class Main {
                 .createDefault(configData.getDiscordBotToken())
                 .enableIntents(GatewayIntent.GUILD_MESSAGES)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
+                .enableIntents(GatewayIntent.MESSAGE_CONTENT)
+                .enableIntents(GatewayIntent.GUILD_VOICE_STATES)
                 .addEventListeners(new DiscordBotListener())
                 .build();
     }
