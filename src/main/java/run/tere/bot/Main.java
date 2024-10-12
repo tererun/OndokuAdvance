@@ -12,7 +12,6 @@ import run.tere.bot.handlers.VoicevoxSpeakerHandler;
 import run.tere.bot.listeners.DiscordBotListener;
 import run.tere.bot.utils.GsonUtil;
 
-import javax.security.auth.login.LoginException;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -69,16 +68,12 @@ public class Main {
     }
 
     private void initJDA() {
-        try {
-            jda = JDABuilder
-                    .createDefault(configData.getDiscordBotToken())
-                    .enableIntents(GatewayIntent.GUILD_MESSAGES)
-                    .enableIntents(GatewayIntent.GUILD_MEMBERS)
-                    .addEventListeners(new DiscordBotListener())
-                    .build();
-        } catch (LoginException e) {
-            throw new RuntimeException(e);
-        }
+        jda = JDABuilder
+                .createDefault(configData.getDiscordBotToken())
+                .enableIntents(GatewayIntent.GUILD_MESSAGES)
+                .enableIntents(GatewayIntent.GUILD_MEMBERS)
+                .addEventListeners(new DiscordBotListener())
+                .build();
     }
 
     private void initCommands() {

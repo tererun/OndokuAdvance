@@ -5,18 +5,22 @@ import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
-import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
-import net.dv8tion.jda.api.events.interaction.SelectionMenuEvent;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildVoiceState;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.Button;
-import net.dv8tion.jda.api.interactions.components.selections.SelectionMenu;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
@@ -28,6 +32,7 @@ import run.tere.bot.handlers.AudioPlayerSendHandler;
 import run.tere.bot.handlers.CustomUserVoiceHandler;
 import run.tere.bot.handlers.OndokuStateHandler;
 import run.tere.bot.speakers.SpeakerInfo;
+import run.tere.bot.utils.VersionUtil;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -41,13 +46,11 @@ import java.util.regex.Pattern;
 public class DiscordBotListener extends ListenerAdapter {
 
     @Override
-    public void onGuildVoiceLeave(@NotNull GuildVoiceLeaveEvent e) {
-        autoDisconnect(e.getChannelLeft());
-    }
-
-    @Override
-    public void onGuildVoiceMove(@NotNull GuildVoiceMoveEvent e) {
-        autoDisconnect(e.getChannelLeft());
+    public void onGuildVoiceUpdate(GuildVoiceUpdateEvent event) {
+        AudioChannelUnion channelLeft = event.getChannelLeft();
+        if (channelLeft != null) {
+            autoDisconnect(channelLeft.asVoiceChannel());
+        }
     }
 
     private void autoDisconnect(VoiceChannel voiceChannel) {
@@ -57,7 +60,8 @@ public class DiscordBotListener extends ListenerAdapter {
         String voiceChannelId = voiceChannel.getId();
         OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
         AudioManager audioManager = guild.getAudioManager();
-        VoiceChannel connectedChannel = audioManager.getConnectedChannel();
+        AudioChannelUnion audioChannelUnion = audioManager.getConnectedChannel();
+        VoiceChannel connectedChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
         if (connectedChannel != null && connectedChannel.getId().equalsIgnoreCase(voiceChannelId) && getConnectedVoiceChannelSizeWithoutBot(connectedChannel) <= 1) {
             OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
             if (ondokuStateData != null) {
@@ -78,7 +82,7 @@ public class DiscordBotListener extends ListenerAdapter {
     private HashMap<String, Integer> viewingPages = new HashMap<>();
 
     @Override
-    public void onSelectionMenu(@NotNull SelectionMenuEvent event) {
+    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
         if (!event.getComponentId().equalsIgnoreCase("voiceData")) return;
         Main instance = Main.getInstance();
         String userId = event.getUser().getId();
@@ -105,10 +109,10 @@ public class DiscordBotListener extends ListenerAdapter {
         event.reply("声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
     }
 
-    private SelectionMenu createSelectionMenu(String userId) {
+    private StringSelectMenu createSelectionMenu(String userId) {
         CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-        SelectionMenu.Builder builder = SelectionMenu.create("voiceData");
+        StringSelectMenu.Builder builder = StringSelectMenu.create("voiceData");
         builder.setPlaceholder("声を選択");
 
         int pageId = viewingPages.getOrDefault(userId, 0);
@@ -131,7 +135,7 @@ public class DiscordBotListener extends ListenerAdapter {
         return builder.build();
     }
 
-    private void editSelectionMenu(ButtonClickEvent event) {
+    private void editSelectionMenu(ButtonInteractionEvent event) {
         event.editComponents(ActionRow.of(
                 createSelectionMenu(event.getUser().getId())
         ), ActionRow.of(
@@ -141,7 +145,7 @@ public class DiscordBotListener extends ListenerAdapter {
     }
 
     @Override
-    public void onButtonClick(@NotNull ButtonClickEvent event) {
+    public void onButtonInteraction(ButtonInteractionEvent event) {
         switch (event.getComponentId()) {
             case "voice_left": {
                 if (viewingPages.getOrDefault(event.getUser().getId(), 0) <= 0) {
@@ -205,7 +209,7 @@ public class DiscordBotListener extends ListenerAdapter {
     }
 
     @Override
-    public void onSlashCommand(@NotNull SlashCommandEvent e) {
+    public void onSlashCommandInteraction(SlashCommandInteractionEvent e) {
         String label = e.getName();
         Guild guild = e.getGuild();
         User user = e.getUser();
@@ -234,7 +238,8 @@ public class DiscordBotListener extends ListenerAdapter {
                         e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue();
                         return;
                     }
-                    VoiceChannel voiceChannel = voiceState.getChannel();
+                    AudioChannelUnion audioChannelUnion = voiceState.getChannel();
+                    VoiceChannel voiceChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
                     if (voiceChannel == null) {
                         e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue();
                         return;
@@ -265,7 +270,8 @@ public class DiscordBotListener extends ListenerAdapter {
 
                     e.reply("接続しました! <#" + voiceChannelId + ">").queue();
                 } else if (subCommandName.equalsIgnoreCase("b")) {
-                    VoiceChannel voiceChannel = audioManager.getConnectedChannel();
+                    AudioChannelUnion audioChannelUnion = audioManager.getConnectedChannel();
+                    VoiceChannel voiceChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
                     OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
                     if (voiceChannel != null) {
                         String voiceChannelId = voiceChannel.getId();
@@ -322,8 +328,8 @@ public class DiscordBotListener extends ListenerAdapter {
         }
     }
 
-    private void sendHelpEmbed(SlashCommandEvent slashCommandEvent) {
-        slashCommandEvent.replyEmbeds(
+    private void sendHelpEmbed(SlashCommandInteractionEvent slashCommandInteractionEvent) {
+        slashCommandInteractionEvent.replyEmbeds(
                 new EmbedBuilder()
                         .setTitle("Info / 情報")
                         .setDescription("読み上げBot「Ondoku」の情報です")
@@ -337,11 +343,42 @@ public class DiscordBotListener extends ListenerAdapter {
                                 , true)
                         .addField(
                                 ":four_leaf_clover: **Thanks**",
-                                "`OpenJTalk`　音声合成システム\n" +
-                                        "`HTS voice tohoku-f01`　[音響モデル](https://github.com/icn-lab/htsvoice-tohoku-f01)\n"+
-                                        "`VOICEVOX`　[ずんだもん](https://voicevox.hiroshiba.jp/)\n"
+                                """
+                                        `OpenJTalk`　音声合成システム
+                                        [HTS voice tohoku-f01](https://github.com/icn-lab/htsvoice-tohoku-f01)
+                                        [VOICEVOX](https://voicevox.hiroshiba.jp/)
+                                        VOICEVOX:四国めたん
+                                        VOICEVOX:ずんだもん
+                                        VOICEVOX:春日部つむぎ
+                                        VOICEVOX:波音リツ
+                                        VOICEVOX:玄野武宏
+                                        VOICEVOX:白上虎太郎
+                                        VOICEVOX:青山龍星
+                                        VOICEVOX:冥鳴ひまり
+                                        VOICEVOX:九州そら
+                                        VOICEVOX:もち子(cv 明日葉よもぎ)
+                                        VOICEVOX:剣崎雌雄
+                                        VOICEVOX:WhiteCUL
+                                        VOICEVOX:後鬼
+                                        VOICEVOX:No.7
+                                        VOICEVOX:ちび式じい
+                                        VOICEVOX:櫻歌ミコ
+                                        VOICEVOX:小夜/SAYO
+                                        VOICEVOX:ナースロボ＿タイプＴ
+                                        VOICEVOX:†聖騎士 紅桜†
+                                        VOICEVOX:雀松朱司
+                                        VOICEVOX:麒ヶ島宗麟
+                                        VOICEVOX:春歌ナナ
+                                        VOICEVOX:猫使アル
+                                        VOICEVOX:猫使ビィ
+                                        VOICEVOX:中国うさぎ
+                                        VOICEVOX:栗田まろん
+                                        VOICEVOX:あいえるたん
+                                        VOICEVOX:満別花丸
+                                        VOICEVOX:琴詠 ニア
+                                        """
                                 , true)
-                        .setFooter("てれるんお手製 - OndokuAdvance Patch-1.0.0")
+                        .setFooter("てれるんお手製 - OndokuAdvance " + VersionUtil.getVersion())
                         .build()
         ).queue();
     }
