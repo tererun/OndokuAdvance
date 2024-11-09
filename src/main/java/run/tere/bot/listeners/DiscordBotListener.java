@@ -183,7 +183,11 @@ public class DiscordBotListener extends ListenerAdapter {
                     event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
                     return;
                 }
-                Main.getInstance().getDictHandler().addDict(guild.getId(), key, value);
+                boolean result = Main.getInstance().getDictHandler().addDict(guild.getId(), key, value);
+                if (!result) {
+                    event.reply("辞書にその単語は既に存在します").setEphemeral(true).queue();
+                    return;
+                }
                 event.replyEmbeds(new EmbedBuilder()
                         .setTitle("辞書に単語を追加しました")
                         .addField("単語", key, true)
@@ -199,7 +203,11 @@ public class DiscordBotListener extends ListenerAdapter {
                     event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
                     return;
                 }
-                Main.getInstance().getDictHandler().removeDict(guild.getId(), key);
+                boolean result = Main.getInstance().getDictHandler().removeDict(guild.getId(), key);
+                if (!result) {
+                    event.reply("辞書にその単語は存在しません").setEphemeral(true).queue();
+                    return;
+                }
                 event.replyEmbeds(new EmbedBuilder()
                         .setTitle("辞書から単語を削除しました")
                         .addField("単語", key, true)
