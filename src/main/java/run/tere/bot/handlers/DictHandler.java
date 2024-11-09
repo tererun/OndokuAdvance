@@ -21,14 +21,14 @@ public class DictHandler {
         guildDictHandler.addDictList(this, dict);
     }
 
-    public void addDict(String guildId, String key, String value) {
+    public boolean addDict(String guildId, String key, String value) {
         GuildDictHandler guildDictHandler = guildDictHandlers.computeIfAbsent(guildId, GuildDictHandler::new);
-        guildDictHandler.addDict(this, key, value);
+        return guildDictHandler.addDict(this, key, value);
     }
 
     public HashMap<String, String> getDict(String guildId) {
         GuildDictHandler guildDictHandler = guildDictHandlers.get(guildId);
-        if (guildDictHandler == null) return null;
+        if (guildDictHandler == null) return new HashMap<>();
         return guildDictHandler.getDict();
     }
 
@@ -38,10 +38,10 @@ public class DictHandler {
         return guildDictHandler.getDict(key);
     }
 
-    public void removeDict(String guildId, String key) {
+    public boolean removeDict(String guildId, String key) {
         GuildDictHandler guildDictHandler = guildDictHandlers.get(guildId);
-        if (guildDictHandler == null) return;
-        guildDictHandler.removeDict(this, key);
+        if (guildDictHandler == null) return false;
+        return guildDictHandler.removeDict(this, key);
     }
 
     public void save() {
