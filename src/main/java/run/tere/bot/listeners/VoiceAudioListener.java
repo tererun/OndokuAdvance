@@ -44,7 +44,14 @@ public class VoiceAudioListener extends AudioEventAdapter {
         if (url.startsWith("coeiroink;")) {
             String[] split = url.split(";");
             try {
-                finalUrl = HttpUtil.createFromSynthesis(split[1], split[2], Integer.parseInt(split[3]));
+                finalUrl = HttpUtil.createCoeiroinkSynthesis(split[1], split[2], Integer.parseInt(split[3]));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else if (url.startsWith("voicevox;")) {
+            String[] split = url.split(";");
+            try {
+                finalUrl = HttpUtil.createVoicevoxSynthesis(split[1], Integer.parseInt(split[2]));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

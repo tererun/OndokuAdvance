@@ -259,13 +259,16 @@ public class DiscordBotListener extends ListenerAdapter {
         if (message.length() >= 120) {
             message = message.substring(0, 119);
         }
+        message = message.toLowerCase();
         for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
-            message = message.replaceAll(entry.getKey(), entry.getValue());
+            String key = Pattern.quote(entry.getKey().toLowerCase());
+            message = message.replaceAll(key, entry.getValue());
         }
         String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
         Pattern pattern = Pattern.compile(regex);
         Matcher matcher = pattern.matcher(message);
         message = matcher.replaceAll("URL省略");
+        message = message.replaceAll(";", "");
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
         CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
@@ -277,7 +280,7 @@ public class DiscordBotListener extends ListenerAdapter {
             customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
         }
         if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
-            uri = configData.getVoicevoxUri() + "/audio/?key=" + configData.getVoicevoxAPIToken() + "&speaker=" + customUserVoiceData.getVoicevoxSpeakerId() + "&pitch=0&intonationScale=1&speed=1&text=" + encodedMessage;
+            uri = "voicevox;" + message + ";" + customUserVoiceData.getVoicevoxSpeakerId();
         } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
             uri = "coeiroink;" + message + ";" + voiceId + ";" + styleId;
         } else {
@@ -461,7 +464,7 @@ public class DiscordBotListener extends ListenerAdapter {
                                 ":keyboard: **Commands**",
                                 "`/ondoku i`　このヘルプを表示\n" +
                                         "`/ondoku s`　Ondoku を召喚します\n" +
-                                        "`/ondoku p 数値`　声の高さを`[-24~24]`の間で変更します\n" +
+                                        "`/ondoku p 数値`　OpenJTalkの声の高さを`[-24~24]`の間で変更します\n" +
                                         "`/ondoku c`　読み上げ声を切り替えます\n" +
                                         "`/ondoku ad`　単語を辞書に追加します\n" +
                                         "`/ondoku rd`　単語を辞書から削除します\n" +
