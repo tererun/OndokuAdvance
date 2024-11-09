@@ -110,7 +110,7 @@ public class DiscordBotListener extends ListenerAdapter {
                 customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
                 break;
         }
-        event.reply("声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
+        event.reply("<@" + userId + "> の声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
     }
 
     private StringSelectMenu createSelectionMenu(String userId) {
