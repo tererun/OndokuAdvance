@@ -41,7 +41,6 @@ public class VoicevoxSpeakerHandler {
                     speakerInfos.add(new SpeakerInfo(
                             "voicevox;" + style.getId() + ";" + speaker.getName() + " - " + style.getName(),
                             speaker.getName() + " - " + style.getName()
-
                     ));
                 }
             }

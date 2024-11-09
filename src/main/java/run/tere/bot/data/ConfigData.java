@@ -6,6 +6,8 @@ public class ConfigData {
     private String coeIroInkUri;
     private String openJTalkUri;
     private String voicevoxUri;
+
+    @Deprecated
     private String voicevoxAPIToken;
 
     public ConfigData(String discordBotToken, String coeIroInkUri, String openJTalkUri, String voicevoxUri, String voicevoxAPIToken) {

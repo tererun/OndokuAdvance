@@ -18,9 +18,13 @@ public class GuildDictHandler {
         dictHandler.save();
     }
 
-    public void addDict(DictHandler dictHandler, String key, String value) {
+    public boolean addDict(DictHandler dictHandler, String key, String value) {
+        for (String dictKey : dict.keySet()) {
+            if (dictKey.equalsIgnoreCase(key)) return false;
+        }
         dict.put(key, value);
         dictHandler.save();
+        return true;
     }
 
     public String getDict(String key) {
@@ -31,9 +35,15 @@ public class GuildDictHandler {
         return dict;
     }
 
-    public void removeDict(DictHandler dictHandler, String key) {
-        dict.remove(key);
-        dictHandler.save();
+    public boolean removeDict(DictHandler dictHandler, String key) {
+        for (String dictKey : dict.keySet()) {
+            if (dictKey.equalsIgnoreCase(key)) {
+                dict.remove(key);
+                dictHandler.save();
+                return true;
+            }
+        }
+        return false;
     }
 
     public String getGuildId() {
