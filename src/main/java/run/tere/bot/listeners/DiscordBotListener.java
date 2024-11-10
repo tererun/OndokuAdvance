@@ -260,14 +260,14 @@ public class DiscordBotListener extends ListenerAdapter {
             message = message.substring(0, 119);
         }
         message = message.toLowerCase();
-        for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
-            String key = Pattern.quote(entry.getKey().toLowerCase());
-            message = message.replaceAll(key, entry.getValue());
-        }
         String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
         Pattern pattern = Pattern.compile(regex);
         Matcher matcher = pattern.matcher(message);
         message = matcher.replaceAll("URL省略");
+        for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
+            String key = Pattern.quote(entry.getKey().toLowerCase());
+            message = message.replaceAll(key, entry.getValue());
+        }
         message = message.replaceAll(";", "");
         CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
         CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
