@@ -43,17 +43,61 @@ import run.tere.bot.utils.VersionUtil;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DiscordBotListener extends ListenerAdapter {
 
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+
+    private static final Consumer<Throwable> IGNORE_ERROR = t ->
+        System.err.println("Interaction response failed (likely expired): " + t.getMessage());
+
     @Override
     public void onGuildVoiceUpdate(GuildVoiceUpdateEvent event) {
-        AudioChannelUnion channelLeft = event.getChannelLeft();
-        if (channelLeft != null) {
-            autoDisconnect(channelLeft.asVoiceChannel());
+        try {
+            Member member = event.getMember();
+            AudioChannelUnion channelJoined = event.getChannelJoined();
+            AudioChannelUnion channelLeft = event.getChannelLeft();
+            log("VoiceUpdate: user=" + member.getUser().getName()
+                    + ", guild=" + event.getGuild().getName()
+                    + ", left=" + (channelLeft != null ? channelLeft.getName() : "null")
+                    + ", joined=" + (channelJoined != null ? channelJoined.getName() : "null")
+                    + ", isBot=" + member.getUser().isBot());
+
+            Guild guild = event.getGuild();
+            if (member.getId().equals(guild.getSelfMember().getId())) {
+                OndokuStateHandler ondokuStateHandler = Main.getInstance().getVoiceChannelHandler();
+                OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guild.getId());
+                AudioManager audioManager = guild.getAudioManager();
+                if (channelJoined != null && ondokuStateData == null) {
+                    log("Bot joined VC but no OndokuState exists, force disconnecting: guild=" + guild.getName() + ", vc=" + channelJoined.getName());
+                    audioManager.setAutoReconnect(false);
+                    audioManager.setSendingHandler(null);
+                    audioManager.setConnectionListener(null);
+                    audioManager.closeAudioConnection();
+                    return;
+                }
+                if (channelLeft != null && channelJoined == null && ondokuStateData == null) {
+                    log("Bot left VC but no OndokuState exists, forcing cleanup: guild=" + guild.getName());
+                    audioManager.setAutoReconnect(false);
+                    audioManager.setSendingHandler(null);
+                    audioManager.setConnectionListener(null);
+                    audioManager.closeAudioConnection();
+                    return;
+                }
+            }
+
+            if (channelLeft != null && !member.getId().equals(guild.getSelfMember().getId())) {
+                autoDisconnect(channelLeft.asVoiceChannel());
+            }
+        } catch (Exception ex) {
+            log("Error handling voice update: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 
@@ -66,9 +110,16 @@ public class DiscordBotListener extends ListenerAdapter {
         AudioManager audioManager = guild.getAudioManager();
         AudioChannelUnion audioChannelUnion = audioManager.getConnectedChannel();
         VoiceChannel connectedChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
-        if (connectedChannel != null && connectedChannel.getId().equalsIgnoreCase(voiceChannelId) && getConnectedVoiceChannelSizeWithoutBot(connectedChannel) <= 1) {
+        int memberCount = connectedChannel != null ? getConnectedVoiceChannelSizeWithoutBot(connectedChannel) : -1;
+        log("autoDisconnect check: guild=" + guild.getName()
+                + ", vc=" + voiceChannel.getName()
+                + ", connectedChannel=" + (connectedChannel != null ? connectedChannel.getName() : "null")
+                + ", nonBotMembers=" + memberCount);
+        if (connectedChannel != null && connectedChannel.getId().equalsIgnoreCase(voiceChannelId) && memberCount <= 1) {
             OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
             if (ondokuStateData != null) {
+                log("autoDisconnect: Disconnecting from vc=" + voiceChannel.getName() + " (no members left)");
+                audioManager.setAutoReconnect(false);
                 audioManager.closeAudioConnection();
                 ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
             }
@@ -87,30 +138,38 @@ public class DiscordBotListener extends ListenerAdapter {
 
     @Override
     public void onStringSelectInteraction(StringSelectInteractionEvent event) {
-        if (!event.getComponentId().equalsIgnoreCase("voiceData")) return;
-        Main instance = Main.getInstance();
-        String userId = event.getUser().getId();
-        String selectedOption = event.getValues().get(0);
-        if (selectedOption == null) {
-            event.reply("声を選択してください").setEphemeral(true).queue();
-            return;
+        try {
+            if (!event.getComponentId().equalsIgnoreCase("voiceData")) return;
+            Main instance = Main.getInstance();
+            String userId = event.getUser().getId();
+            String selectedOption = event.getValues().get(0);
+            if (selectedOption == null) {
+                event.reply("声を選択してください").setEphemeral(true).queue(null, IGNORE_ERROR);
+                return;
+            }
+            CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
+            CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+            String[] selectedOptionSplit = selectedOption.split(";");
+            switch (selectedOptionSplit[0]) {
+                case "openjtalk":
+                    customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
+                    break;
+                case "voicevox":
+                    customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.VOICEVOX);
+                    customUserVoiceData.setVoicevoxSpeakerId(customUserVoiceHandler, Integer.parseInt(selectedOptionSplit[1]));
+                    break;
+                case "coeiroink":
+                    customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
+                    break;
+            }
+            event.reply("<@" + userId + "> の声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue(null, IGNORE_ERROR);
+        } catch (Exception ex) {
+            System.err.println("Error handling voice selection: " + ex.getMessage());
+            ex.printStackTrace();
+            try {
+                event.reply("エラーが発生しました。もう一度お試しください。").setEphemeral(true).queue(null, t -> {});
+            } catch (Exception ignored) {}
         }
-        CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
-        CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-        String[] selectedOptionSplit = selectedOption.split(";");
-        switch (selectedOptionSplit[0]) {
-            case "openjtalk":
-                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
-                break;
-            case "voicevox":
-                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.VOICEVOX);
-                customUserVoiceData.setVoicevoxSpeakerId(customUserVoiceHandler, Integer.parseInt(selectedOptionSplit[1]));
-                break;
-            case "coeiroink":
-                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.COEIROINK);
-                break;
-        }
-        event.reply("<@" + userId + "> の声を「**" + selectedOptionSplit[2] + "**」に変更しました").queue();
     }
 
     private StringSelectMenu createSelectionMenu(String userId) {
@@ -145,159 +204,197 @@ public class DiscordBotListener extends ListenerAdapter {
         ), ActionRow.of(
                 Button.secondary("voice_left", "←"),
                 Button.secondary("voice_right", "→")
-        )).queue();
+        )).queue(null, IGNORE_ERROR);
     }
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
-        switch (event.getComponentId()) {
-            case "voice_left": {
-                if (viewingPages.getOrDefault(event.getUser().getId(), 0) <= 0) {
-                    event.reply("これ以上左には移動できません").setEphemeral(true).queue();
-                    return;
+        try {
+            switch (event.getComponentId()) {
+                case "voice_left": {
+                    if (viewingPages.getOrDefault(event.getUser().getId(), 0) <= 0) {
+                        event.reply("これ以上左には移動できません").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+                    viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) - 1);
+                    editSelectionMenu(event);
+                    break;
                 }
-                viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) - 1);
-                editSelectionMenu(event);
-                break;
-            }
-            case "voice_right": {
-                if (viewingPages.getOrDefault(event.getUser().getId(), 0) >= Math.floor((double) Main.getInstance().getVoicevoxSpeakerHandler().getSpeakerInfos().size() / 25)) {
-                    event.reply("これ以上右には移動できません").setEphemeral(true).queue();
-                    return;
+                case "voice_right": {
+                    if (viewingPages.getOrDefault(event.getUser().getId(), 0) >= Math.floor((double) Main.getInstance().getVoicevoxSpeakerHandler().getSpeakerInfos().size() / 25)) {
+                        event.reply("これ以上右には移動できません").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+                    viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) + 1);
+                    editSelectionMenu(event);
+                    break;
                 }
-                viewingPages.put(event.getUser().getId(), viewingPages.get(event.getUser().getId()) + 1);
-                editSelectionMenu(event);
-                break;
             }
+        } catch (Exception ex) {
+            System.err.println("Error handling button interaction: " + ex.getMessage());
+            ex.printStackTrace();
+            try {
+                event.reply("エラーが発生しました。もう一度お試しください。").setEphemeral(true).queue(null, t -> {});
+            } catch (Exception ignored) {}
         }
     }
 
     @Override
     public void onModalInteraction(ModalInteractionEvent event) {
-        switch (event.getModalId()) {
-            case "add_dict_modal": {
-                String key = event.getValues().get(0).getAsString();
-                String value = event.getValues().get(1).getAsString();
-                Guild guild = event.getGuild();
-                if (guild == null) {
-                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
-                    return;
-                }
-                boolean result = Main.getInstance().getDictHandler().addDict(guild.getId(), key, value);
-                if (!result) {
-                    event.reply("辞書にその単語は既に存在します").setEphemeral(true).queue();
-                    return;
-                }
-                event.replyEmbeds(new EmbedBuilder()
-                        .setTitle("辞書に単語を追加しました")
-                        .addField("単語", key, true)
-                        .addField("読み", value, true)
-                        .build()
-                ).queue();
-                break;
-            }
-            case "remove_dict_modal": {
-                String key = event.getValues().get(0).getAsString();
-                Guild guild = event.getGuild();
-                if (guild == null) {
-                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
-                    return;
-                }
-                boolean result = Main.getInstance().getDictHandler().removeDict(guild.getId(), key);
-                if (!result) {
-                    event.reply("辞書にその単語は存在しません").setEphemeral(true).queue();
-                    return;
-                }
-                event.replyEmbeds(new EmbedBuilder()
-                        .setTitle("辞書から単語を削除しました")
-                        .addField("単語", key, true)
-                        .build()
-                ).queue();
-                break;
-            }
-            case "add_json_dict_modal": {
-                String json = event.getValues().get(0).getAsString();
-                Guild guild = event.getGuild();
-                if (guild == null) {
-                    event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue();
-                    return;
-                }
-
-                Gson gson = new Gson();
-
-                try {
-                    Map<String, String> map = gson.fromJson(json, new TypeToken<Map<String, String>>() {
-                    }.getType());
-
-                    Main.getInstance().getDictHandler().addDictList(guild.getId(), map);
+        try {
+            switch (event.getModalId()) {
+                case "add_dict_modal": {
+                    String key = event.getValues().get(0).getAsString();
+                    String value = event.getValues().get(1).getAsString();
+                    Guild guild = event.getGuild();
+                    if (guild == null) {
+                        event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+                    boolean result = Main.getInstance().getDictHandler().addDict(guild.getId(), key, value);
+                    if (!result) {
+                        event.reply("辞書にその単語は既に存在します").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
                     event.replyEmbeds(new EmbedBuilder()
-                            .setTitle("辞書にJSONで単語を追加しました")
-                            .addField("JSON", json, true)
+                            .setTitle("辞書に単語を追加しました")
+                            .addField("単語", key, true)
+                            .addField("読み", value, true)
                             .build()
-                    ).queue();
-                } catch (JsonSyntaxException e) {
-                    event.reply("JSONの形式が正しくありません").setEphemeral(true).queue();
+                    ).queue(null, IGNORE_ERROR);
+                    break;
                 }
-                break;
+                case "remove_dict_modal": {
+                    String key = event.getValues().get(0).getAsString();
+                    Guild guild = event.getGuild();
+                    if (guild == null) {
+                        event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+                    boolean result = Main.getInstance().getDictHandler().removeDict(guild.getId(), key);
+                    if (!result) {
+                        event.reply("辞書にその単語は存在しません").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+                    event.replyEmbeds(new EmbedBuilder()
+                            .setTitle("辞書から単語を削除しました")
+                            .addField("単語", key, true)
+                            .build()
+                    ).queue(null, IGNORE_ERROR);
+                    break;
+                }
+                case "add_json_dict_modal": {
+                    String json = event.getValues().get(0).getAsString();
+                    Guild guild = event.getGuild();
+                    if (guild == null) {
+                        event.reply("このコマンドはサーバー内でのみ使用できます").setEphemeral(true).queue(null, IGNORE_ERROR);
+                        return;
+                    }
+
+                    Gson gson = new Gson();
+
+                    try {
+                        Map<String, String> map = gson.fromJson(json, new TypeToken<Map<String, String>>() {
+                        }.getType());
+
+                        Main.getInstance().getDictHandler().addDictList(guild.getId(), map);
+                        event.replyEmbeds(new EmbedBuilder()
+                                .setTitle("辞書にJSONで単語を追加しました")
+                                .addField("JSON", json, true)
+                                .build()
+                        ).queue(null, IGNORE_ERROR);
+                    } catch (JsonSyntaxException e) {
+                        event.reply("JSONの形式が正しくありません").setEphemeral(true).queue(null, IGNORE_ERROR);
+                    }
+                    break;
+                }
             }
+        } catch (Exception ex) {
+            System.err.println("Error handling modal interaction: " + ex.getMessage());
+            ex.printStackTrace();
+            try {
+                event.reply("エラーが発生しました。もう一度お試しください。").setEphemeral(true).queue(null, t -> {});
+            } catch (Exception ignored) {}
         }
     }
 
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent e) {
-        Main instance = Main.getInstance();
-        ConfigData configData = instance.getConfigData();
-        User user = e.getAuthor();
-        String userId = user.getId();
-        String guildId = e.getGuild().getId();
-        String channelId = e.getChannel().getId();
-        String message = e.getMessage().getContentDisplay();
-        OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
-        OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
-        if (user.isBot()) return;
-        if (ondokuStateData == null || !ondokuStateData.getTextChannelId().equalsIgnoreCase(channelId)) return;
-        if (message.length() >= 120) {
-            message = message.substring(0, 119);
+        try {
+            Main instance = Main.getInstance();
+            ConfigData configData = instance.getConfigData();
+            User user = e.getAuthor();
+            String userId = user.getId();
+            if (!e.isFromGuild()) return;
+            String guildId = e.getGuild().getId();
+            String channelId = e.getChannel().getId();
+            String message = e.getMessage().getContentDisplay();
+            OndokuStateHandler ondokuStateHandler = instance.getVoiceChannelHandler();
+            OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
+            if (user.isBot()) return;
+            if (ondokuStateData == null || !ondokuStateData.getTextChannelId().equalsIgnoreCase(channelId)) return;
+            if (message.length() >= 120) {
+                message = message.substring(0, 119);
+            }
+            message = message.toLowerCase();
+            String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(message);
+            message = matcher.replaceAll("URL省略");
+            for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
+                String key = Pattern.quote(entry.getKey().toLowerCase());
+                message = message.replaceAll(key, entry.getValue());
+            }
+            message = message.replaceAll(";", "");
+            CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
+            CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
+            CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
+            String voiceId = customUserVoiceData.getVoiceId();
+            int styleId = customUserVoiceData.getStyleId();
+            String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
+            String uri;
+            if (customUserVoiceType == null) {
+                customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
+            }
+            if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
+                uri = "voicevox;" + message + ";" + customUserVoiceData.getVoicevoxSpeakerId();
+            } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
+                uri = "coeiroink;" + message + ";" + voiceId + ";" + styleId;
+            } else {
+                uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
+            }
+            ondokuStateData.getVoiceAudioListener().addQueue(uri);
+        } catch (Exception ex) {
+            System.err.println("Error processing message for TTS: " + ex.getMessage());
+            ex.printStackTrace();
         }
-        message = message.toLowerCase();
-        String regex = "https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$,%#]+";
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(message);
-        message = matcher.replaceAll("URL省略");
-        for (Map.Entry<String, String> entry : instance.getDictHandler().getDict(guildId).entrySet()) {
-            String key = Pattern.quote(entry.getKey().toLowerCase());
-            message = message.replaceAll(key, entry.getValue());
-        }
-        message = message.replaceAll(";", "");
-        CustomUserVoiceHandler customUserVoiceHandler = instance.getCustomUserVoiceHandler();
-        CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
-        CustomUserVoiceType customUserVoiceType = customUserVoiceData.getCustomUserVoiceType();
-        String voiceId = customUserVoiceData.getVoiceId();
-        int styleId = customUserVoiceData.getStyleId();
-        String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8);
-        String uri;
-        if (customUserVoiceType == null) {
-            customUserVoiceData.setCustomUserVoiceType(customUserVoiceHandler, CustomUserVoiceType.OPEN_JTALK);
-        }
-        if (customUserVoiceType == CustomUserVoiceType.VOICEVOX) {
-            uri = "voicevox;" + message + ";" + customUserVoiceData.getVoicevoxSpeakerId();
-        } else if (customUserVoiceType == CustomUserVoiceType.COEIROINK && voiceId != null) {
-            uri = "coeiroink;" + message + ";" + voiceId + ";" + styleId;
-        } else {
-            uri = configData.getOpenJTalkUri() + "?text=" + encodedMessage + "&voice=/usr/local/src/htsvoice-tohoku-f01/tohoku-f01-neutral.htsvoice&uuid=" + UUID.randomUUID() + "&fm=" + customUserVoiceData.getPitch();
-        }
-        ondokuStateData.getVoiceAudioListener().addQueue(uri);
     }
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent e) {
+        try {
+            handleSlashCommand(e);
+        } catch (Exception ex) {
+            System.err.println("Error handling slash command: " + ex.getMessage());
+            ex.printStackTrace();
+            try {
+                if (e.isAcknowledged()) {
+                    e.getHook().sendMessage("エラーが発生しました。もう一度お試しください。").queue(null, t -> {});
+                } else {
+                    e.reply("エラーが発生しました。もう一度お試しください。").setEphemeral(true).queue(null, t -> {});
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void handleSlashCommand(SlashCommandInteractionEvent e) {
         String label = e.getName();
         Guild guild = e.getGuild();
         User user = e.getUser();
         String userId = user.getId();
         if (label.equalsIgnoreCase("ondoku")) {
             if (guild == null) {
-                e.reply("ここではこのコマンドを実行できません").queue();
+                e.reply("ここではこのコマンドを実行できません").queue(null, IGNORE_ERROR);
                 return;
             }
             String guildId = guild.getId();
@@ -307,7 +404,7 @@ public class DiscordBotListener extends ListenerAdapter {
             } else {
                 Member member = e.getMember();
                 if (member == null) {
-                    e.reply("ここではこのコマンドを実行できません").queue();
+                    e.reply("ここではこのコマンドを実行できません").queue(null, IGNORE_ERROR);
                     return;
                 }
                 GuildVoiceState voiceState = member.getVoiceState();
@@ -316,21 +413,23 @@ public class DiscordBotListener extends ListenerAdapter {
                 AudioManager audioManager = guild.getAudioManager();
                 if (subCommandName.equalsIgnoreCase("s")) {
                     if (voiceState == null) {
-                        e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue();
+                        e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue(null, IGNORE_ERROR);
                         return;
                     }
                     AudioChannelUnion audioChannelUnion = voiceState.getChannel();
                     VoiceChannel voiceChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
                     if (voiceChannel == null) {
-                        e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue();
+                        e.reply("ボイスチャンネルに入った状態で呼び出してください!").queue(null, IGNORE_ERROR);
                         return;
                     }
                     if (audioManager.getConnectedChannel() != null) {
-                        e.reply("すでにこのサーバーでは呼び出されています!").queue();
+                        e.reply("すでにこのサーバーでは呼び出されています!").queue(null, IGNORE_ERROR);
                         return;
                     }
+
                     OndokuStateData oldOndokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
                     if (oldOndokuStateData != null) {
+                        log("Removing old OndokuStateData for guild=" + guildId);
                         ondokuStateHandler.getOndokuStateDataList().remove(oldOndokuStateData);
                     }
 
@@ -344,44 +443,73 @@ public class DiscordBotListener extends ListenerAdapter {
                     audioPlayer.addListener(voiceAudioListener);
 
                     audioManager.setSendingHandler(new AudioPlayerSendHandler(audioPlayer));
+                    audioManager.setAutoReconnect(true);
+                    audioManager.setConnectionListener(new net.dv8tion.jda.api.audio.hooks.ConnectionListener() {
+                        @Override
+                        public void onStatusChange(net.dv8tion.jda.api.audio.hooks.ConnectionStatus status) {
+                            log("Voice connection state: guild=" + guild.getName() + ", vc=" + voiceChannel.getName() + ", state=" + status);
+                            if (status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_LOST_CONNECTION
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_CANNOT_RESUME
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_WEBSOCKET_UNABLE_TO_CONNECT
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_UDP_UNABLE_TO_CONNECT) {
+                                log("Voice connection error detected, cleaning up: guild=" + guild.getName() + ", state=" + status);
+                                audioManager.setAutoReconnect(false);
+                                audioManager.setSendingHandler(null);
+                                audioManager.setConnectionListener(null);
+                                audioManager.closeAudioConnection();
+                                OndokuStateData stateToRemove = ondokuStateHandler.getOndokuStateData(guildId);
+                                if (stateToRemove != null) {
+                                    ondokuStateHandler.getOndokuStateDataList().remove(stateToRemove);
+                                }
+                            }
+                        }
+                    });
+                    log("Opening audio connection: guild=" + guild.getName() + ", vc=" + voiceChannel.getName());
                     audioManager.openAudioConnection(voiceChannel);
 
                     OndokuStateData ondokuStateData = new OndokuStateData(audioPlayer, audioPlayerManager, voiceAudioListener, guildId, voiceChannelId, e.getMessageChannel().getId());
                     ondokuStateHandler.getOndokuStateDataList().add(ondokuStateData);
 
-                    e.reply("接続しました! <#" + voiceChannelId + ">").queue();
+                    log("Audio connection requested: guild=" + guild.getName() + ", vc=" + voiceChannel.getName());
+                    e.reply("接続しました! <#" + voiceChannelId + ">").queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("b")) {
                     AudioChannelUnion audioChannelUnion = audioManager.getConnectedChannel();
                     VoiceChannel voiceChannel = audioChannelUnion == null ? null : audioChannelUnion.asVoiceChannel();
                     OndokuStateData ondokuStateData = ondokuStateHandler.getOndokuStateData(guildId);
                     if (voiceChannel != null) {
                         String voiceChannelId = voiceChannel.getId();
+                        log("Manual disconnect: guild=" + guild.getName() + ", vc=" + voiceChannel.getName());
+                        audioManager.setAutoReconnect(false);
                         audioManager.closeAudioConnection();
 
                         if (ondokuStateData != null) {
                             ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
                         }
-                        e.reply("切断しました! <#" + voiceChannelId + ">").queue();
+                        e.reply("切断しました! <#" + voiceChannelId + ">").queue(null, IGNORE_ERROR);
+                    } else if (ondokuStateData != null) {
+                        log("Manual disconnect (reset): guild=" + guild.getName() + ", no connected channel but state exists");
+                        audioManager.setAutoReconnect(false);
+                        audioManager.closeAudioConnection();
+                        ondokuStateHandler.getOndokuStateDataList().remove(ondokuStateData);
+                        e.reply("切断しました! (接続状態をリセットしました)").queue(null, IGNORE_ERROR);
                     } else {
-                        if (ondokuStateData == null) {
-                            e.reply("このサーバーでは呼び出されていません!").queue();
-                        }
+                        e.reply("このサーバーでは呼び出されていません!").queue(null, IGNORE_ERROR);
                     }
                 } else if (subCommandName.equalsIgnoreCase("p")) {
                     OptionMapping optionMapping = e.getOption("pitch");
                     if (optionMapping == null) {
-                        e.reply("値を`-24~24`の間で入力してください").queue();
+                        e.reply("値を`-24~24`の間で入力してください").queue(null, IGNORE_ERROR);
                         return;
                     }
                     double pitchDouble = optionMapping.getAsDouble();
                     if (pitchDouble < -24 || pitchDouble > 24) {
-                        e.reply("値を`-24~24`の間で入力してください").queue();
+                        e.reply("値を`-24~24`の間で入力してください").queue(null, IGNORE_ERROR);
                         return;
                     }
                     CustomUserVoiceHandler customUserVoiceHandler = Main.getInstance().getCustomUserVoiceHandler();
                     CustomUserVoiceData customUserVoiceData = customUserVoiceHandler.getCustomUserVoiceData(userId);
                     customUserVoiceData.setPitch(customUserVoiceHandler, (float) pitchDouble);
-                    e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue();
+                    e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("ad")) {
                     Modal modal = Modal.create("add_dict_modal", "辞書に単語を追加")
                             .addComponents(ActionRow.of(
@@ -395,7 +523,7 @@ public class DiscordBotListener extends ListenerAdapter {
                                             .build()
                             )).build();
 
-                    e.replyModal(modal).queue();
+                    e.replyModal(modal).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("rd")) {
                     Modal modal = Modal.create("remove_dict_modal", "辞書から単語を削除")
                             .addComponents(ActionRow.of(
@@ -406,7 +534,7 @@ public class DiscordBotListener extends ListenerAdapter {
                                     )
                             ).build();
 
-                    e.replyModal(modal).queue();
+                    e.replyModal(modal).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("ajd")) {
                     Modal modal = Modal.create("add_json_dict_modal", "辞書にJSONで単語を追加")
                             .addComponents(ActionRow.of(
@@ -417,7 +545,7 @@ public class DiscordBotListener extends ListenerAdapter {
                                     )
                             ).build();
 
-                    e.replyModal(modal).queue();
+                    e.replyModal(modal).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("d")) {
                     EmbedBuilder builder = new EmbedBuilder()
                             .setTitle("辞書")
@@ -427,7 +555,7 @@ public class DiscordBotListener extends ListenerAdapter {
                         builder.addField(entry.getKey(), entry.getValue(), true);
                     }
 
-                    e.replyEmbeds(builder.build()).queue();
+                    e.replyEmbeds(builder.build()).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("c")) {
                     viewingPages.put(user.getId(), 0);
 
@@ -438,13 +566,13 @@ public class DiscordBotListener extends ListenerAdapter {
                                     Button.secondary("voice_right", "→")
                             )
                             .setEphemeral(true)
-                            .queue();
+                            .queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("r")) {
                     if (user.getId().equalsIgnoreCase("292431056135782402")) {
                         Main.getInstance().reloadConfig();
-                        e.reply("リロードしました!").queue();
+                        e.reply("リロードしました!").queue(null, IGNORE_ERROR);
                     } else {
-                        e.reply("権限がありません!").queue();
+                        e.reply("権限がありません!").queue(null, IGNORE_ERROR);
                     }
                 } else if (subCommandName.equalsIgnoreCase("i")) {
                     sendHelpEmbed(e);
@@ -511,7 +639,11 @@ public class DiscordBotListener extends ListenerAdapter {
                                 , true)
                         .setFooter("てれるんお手製 - OndokuAdvance " + VersionUtil.getVersion())
                         .build()
-        ).queue();
+        ).queue(null, IGNORE_ERROR);
+    }
+
+    private static void log(String message) {
+        System.out.println("[" + LocalDateTime.now().format(FORMATTER) + "] [DiscordBot] " + message);
     }
 
 }

@@ -112,6 +112,9 @@ public class HttpUtil {
         Gson gson = new Gson();
         String jsonQuery = gson.toJson(query);
 
+        System.out.println("COEIROINK Request URL: " + urlString);
+        System.out.println("COEIROINK Request Body: " + jsonQuery);
+
         return fetchWave(urlString, jsonQuery);
     }
 
