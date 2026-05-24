@@ -22,12 +22,13 @@ import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionE
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.jetbrains.annotations.NotNull;
 import run.tere.bot.Main;
@@ -448,10 +449,16 @@ public class DiscordBotListener extends ListenerAdapter {
                         @Override
                         public void onStatusChange(net.dv8tion.jda.api.audio.hooks.ConnectionStatus status) {
                             log("Voice connection state: guild=" + guild.getName() + ", vc=" + voiceChannel.getName() + ", state=" + status);
-                            if (status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_LOST_CONNECTION
-                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_CANNOT_RESUME
-                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_WEBSOCKET_UNABLE_TO_CONNECT
-                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_UDP_UNABLE_TO_CONNECT) {
+                            if (status.shouldReconnect()) {
+                                log("Voice connection recoverable error, waiting for reconnect: guild=" + guild.getName() + ", state=" + status);
+                                return;
+                            }
+                            if (status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.ERROR_UNSUPPORTED_ENCRYPTION_MODES
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.DISCONNECTED_AUTHENTICATION_FAILURE
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.DISCONNECTED_LOST_PERMISSION
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.DISCONNECTED_REMOVED_FROM_GUILD
+                                    || status == net.dv8tion.jda.api.audio.hooks.ConnectionStatus.DISCONNECTED_CHANNEL_DELETED) {
                                 log("Voice connection error detected, cleaning up: guild=" + guild.getName() + ", state=" + status);
                                 audioManager.setAutoReconnect(false);
                                 audioManager.setSendingHandler(null);
@@ -512,12 +519,12 @@ public class DiscordBotListener extends ListenerAdapter {
                     e.reply("ピッチを `" + pitchDouble + "` に変更しました!").queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("ad")) {
                     Modal modal = Modal.create("add_dict_modal", "辞書に単語を追加")
-                            .addComponents(ActionRow.of(
-                                    TextInput.create("key","単語", TextInputStyle.SHORT)
+                            .addComponents(Label.of("単語",
+                                    TextInput.create("key", TextInputStyle.SHORT)
                                             .setPlaceholder("単語を入力してください")
                                             .setRequired(true)
-                                            .build()), ActionRow.of(
-                                    TextInput.create("value","読み", TextInputStyle.SHORT)
+                                            .build()), Label.of("読み",
+                                    TextInput.create("value", TextInputStyle.SHORT)
                                             .setPlaceholder("読みを入力してください")
                                             .setRequired(true)
                                             .build()
@@ -526,8 +533,8 @@ public class DiscordBotListener extends ListenerAdapter {
                     e.replyModal(modal).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("rd")) {
                     Modal modal = Modal.create("remove_dict_modal", "辞書から単語を削除")
-                            .addComponents(ActionRow.of(
-                                    TextInput.create("key","単語", TextInputStyle.SHORT)
+                            .addComponents(Label.of("単語",
+                                    TextInput.create("key", TextInputStyle.SHORT)
                                             .setPlaceholder("単語を入力してください")
                                             .setRequired(true)
                                             .build()
@@ -537,8 +544,8 @@ public class DiscordBotListener extends ListenerAdapter {
                     e.replyModal(modal).queue(null, IGNORE_ERROR);
                 } else if (subCommandName.equalsIgnoreCase("ajd")) {
                     Modal modal = Modal.create("add_json_dict_modal", "辞書にJSONで単語を追加")
-                            .addComponents(ActionRow.of(
-                                            TextInput.create("json","JSON", TextInputStyle.PARAGRAPH)
+                            .addComponents(Label.of("JSON",
+                                            TextInput.create("json", TextInputStyle.PARAGRAPH)
                                                     .setPlaceholder("JSONを入力してください")
                                                     .setRequired(true)
                                                     .build()
@@ -560,10 +567,12 @@ public class DiscordBotListener extends ListenerAdapter {
                     viewingPages.put(user.getId(), 0);
 
                     e.reply("使いたい声を選択してください")
-                            .addActionRow(createSelectionMenu(user.getId()))
-                            .addActionRow(
+                            .addComponents(
+                                    ActionRow.of(createSelectionMenu(user.getId())),
+                                    ActionRow.of(
                                     Button.secondary("voice_left", "←"),
                                     Button.secondary("voice_right", "→")
+                                    )
                             )
                             .setEphemeral(true)
                             .queue(null, IGNORE_ERROR);
