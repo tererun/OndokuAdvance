@@ -1,7 +1,9 @@
 package run.tere.bot;
 
+import club.minnced.discord.jdave.interop.JDaveSessionFactory;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.audio.AudioModuleConfig;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
@@ -73,6 +75,8 @@ public class Main {
     private void initJDA() {
         jda = JDABuilder
                 .createDefault(configData.getDiscordBotToken())
+                .setAudioModuleConfig(new AudioModuleConfig()
+                        .withDaveSessionFactory(new JDaveSessionFactory()))
                 .enableIntents(GatewayIntent.GUILD_MESSAGES)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT)

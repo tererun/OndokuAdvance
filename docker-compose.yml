@@ -1,13 +1,16 @@
 services:
   ondoku-advance:
-    image: eclipse-temurin:21-jre
+    image: eclipse-temurin:25-jdk
     container_name: ondoku-advance
     working_dir: /app
     volumes:
       - ./:/app
+      - gradle-cache:/root/.gradle
     environment:
       - TZ=Asia/Tokyo
-    command: java -jar OndokuAdvance-1.1.6-all.jar
+    command: >
+      sh -lc './gradlew --no-daemon shadowJar &&
+      exec java --enable-native-access=ALL-UNNAMED -jar build/libs/OndokuAdvance-all.jar'
     restart: unless-stopped
     # ホストのネットワークを使う（localhost対策）
     network_mode: host
@@ -15,3 +18,6 @@ services:
     # ▼ ここが -it に相当する設定です
     stdin_open: true # -i (インタラクティブモード: 標準入力を開いたままにする)
     tty: true        # -t (擬似端末を割り当てる)
+
+volumes:
+  gradle-cache:
